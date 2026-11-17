@@ -4,6 +4,12 @@ __pycache__/
 .venv/
 venv/
 
+# Empaquetado (PyInstaller): los binarios no se suben al repositorio
+build/
+dist/
+*.exe
+.ruff_cache/
+
 # Editores y sistema
 .vscode/
 .idea/
