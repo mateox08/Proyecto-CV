@@ -11,7 +11,7 @@ Diseño y textos: docs/DISENO.md (secciones 1, 3, 4, 5 y 6).
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QSettings, QStandardPaths, Qt, QTimer
-from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QGuiApplication, QKeySequence, QPalette, QShortcut
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -126,7 +126,7 @@ class VentanaPrincipal(QMainWindow):
 
     def _crear_barra_superior(self):
         barra = QWidget()
-        barra.setMinimumHeight(56)
+        barra.setMinimumHeight(48)
         self._diseno_barra = QHBoxLayout(barra)
         textos = QVBoxLayout()
         textos.setSpacing(0)
@@ -150,8 +150,8 @@ class VentanaPrincipal(QMainWindow):
     def _crear_columna_izquierda(self):
         contenido = QWidget()
         diseno = QVBoxLayout(contenido)
-        diseno.setContentsMargins(0, 4, 0, 4)  # 4 DIP: lo que añade el anillo arriba
-        diseno.setSpacing(12)
+        diseno.setContentsMargins(0, 4, 0, 0)  # 4 DIP: lo que añade el anillo arriba
+        diseno.setSpacing(6)
         diseno.addWidget(self._crear_tarjeta_datos())
         self.tarjeta_resultado = TarjetaResultado(self._escala)
         self._tematizables.append(self.tarjeta_resultado)
@@ -185,7 +185,7 @@ class VentanaPrincipal(QMainWindow):
 
     def _crear_tarjeta_datos(self):
         tarjeta = Tarjeta("Datos")
-        tarjeta.diseno.setSpacing(6)
+        tarjeta.diseno.setSpacing(4)
         self.bloque_r = CampoNumerico(
             "Radio de la esfera R", validacion.validar_radio, "5", "Ej.: 5 o 7,5",
             "Número real positivo. Acepta coma o punto decimal.",
@@ -238,16 +238,15 @@ class VentanaPrincipal(QMainWindow):
         interior.setSpacing(12)
         interior.addWidget(self.barra_progreso, 1)
         interior.addWidget(self.etiqueta_progreso)
-        politica = self.panel_progreso.sizePolicy()
-        politica.setRetainSizeWhenHidden(True)  # no empuja el resto al aparecer
-        self.panel_progreso.setSizePolicy(politica)
         tarjeta.diseno.addWidget(self.panel_progreso)
         self._mostrar_progreso(False)
         return tarjeta
 
     def _crear_tarjeta_opciones(self):
-        tarjeta = Tarjeta("Opciones")
-        tarjeta.diseno.addWidget(etiqueta("Método de la suma", "etiqueta_campo"))
+        # El encabezado de la tarjeta es el propio rótulo del selector: ahorra
+        # una línea y la columna cabe en 793 DIP de alto (ventana maximizada).
+        tarjeta = Tarjeta("Método de la suma")
+        tarjeta.setAccessibleName("Opciones")
         self.selector_metodo = SelectorMetodo()
         tarjeta.diseno.addWidget(self.selector_metodo)
         tarjeta.diseno.addWidget(
@@ -313,8 +312,8 @@ class VentanaPrincipal(QMainWindow):
         self._diseno_rejilla.setSpacing(8)  # + 8 de anillos = 16 DIP visibles
         self._diseno_rejilla.setColumnStretch(0, 1)
         self._diseno_rejilla.setColumnStretch(1, 1)
-        self._diseno_rejilla.setRowStretch(0, 55)
-        self._diseno_rejilla.setRowStretch(1, 45)
+        self._diseno_rejilla.setRowStretch(0, 50)
+        self._diseno_rejilla.setRowStretch(1, 50)
         self._pestanas = QTabWidget()
         self._pestanas.setDocumentMode(True)
         self._pestanas.setAccessibleName("Gráficas")
@@ -683,7 +682,19 @@ class VentanaPrincipal(QMainWindow):
             self.grafica_riemann,
             self.grafica_convergencia,
         ):
+            self._pintar_fondo_de_lienzo(grafica)
             grafica.aplicar_tema(self._colores)
+
+    def _pintar_fondo_de_lienzo(self, grafica):
+        """Fondo `superficie` detrás del lienzo.
+
+        Con escalas de pantalla fraccionarias (125 %) matplotlib puede dejar sin
+        cubrir 1 píxel del borde; así ahí se ve `superficie` y no otro color.
+        """
+        paleta = grafica.palette()
+        paleta.setColor(QPalette.ColorRole.Window, QColor(self._colores["superficie"]))
+        grafica.setPalette(paleta)
+        grafica.setAutoFillBackground(True)
 
     # =====================================================================
     # Tamaño: rejilla o pestañas
@@ -723,9 +734,9 @@ class VentanaPrincipal(QMainWindow):
     def _aplicar_margen(self, margen):
         # Los anillos de las tarjetas añaden 4 DIP por lado, de ahí el "- 4".
         # Arriba y abajo se quita algo más (la barra superior ya tiene aire):
-        # sin eso la columna izquierda no cabe en 864 DIP de alto.
+        # sin eso la columna izquierda no cabe en 793 DIP de alto.
         self._diseno_cuerpo.setContentsMargins(
-            margen, margen - 12, margen - 4, margen - 8
+            margen, margen - 14, margen - 4, margen - 14
         )
         self._diseno_barra.setContentsMargins(margen, 4, margen, 4)
 

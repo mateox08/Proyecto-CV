@@ -3,6 +3,7 @@
 import tempfile
 import time
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QEventLoop, Qt, QTimer
@@ -117,6 +118,14 @@ class PruebasTextos(unittest.TestCase):
         )
         self.assertTrue(conv.descripcion_accesible().endswith("por ciento."))
         self.assertEqual(riemann.accessibleName(), riemann.descripcion_accesible())
+
+
+class PruebasRuido(unittest.TestCase):
+    def test_error_de_ruido_se_describe_sin_numero(self):
+        conv = hacer_graficas(False)[2]
+        ruido = replace(calcular(5.0, 1000), error_relativo=0.0)
+        conv.marcar_actual(ruido, animar=False)
+        self.assertIn("menor que el límite de precisión", conv.descripcion_accesible())
 
 
 class PruebasTema(unittest.TestCase):

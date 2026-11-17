@@ -6,7 +6,12 @@ cualquiera de ellos puede aparecer la banda "Cálculo cancelado".
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QGraphicsOpacityEffect, QGridLayout, QWidget
+from PySide6.QtWidgets import (
+    QGraphicsOpacityEffect,
+    QGridLayout,
+    QHBoxLayout,
+    QWidget,
+)
 
 from viviani.formato import (
     formatear_cientifico,
@@ -69,13 +74,22 @@ class TarjetaResultado(Tarjeta):
         celda.setContentsMargins(0, 0, 0, 0)
         celda.addWidget(self.vacio, 0, 0, Qt.AlignmentFlag.AlignVCenter)
         celda.addWidget(self.contenido, 0, 0)
-        for pieza in (self.vacio, self.contenido):
+        # La banda de error también va en la misma celda: ocupa el sitio de los
+        # valores y la tarjeta no crece cuando falla un cálculo.
+        celda.addWidget(self.banda_error, 0, 0, Qt.AlignmentFlag.AlignTop)
+        for pieza in (self.vacio, self.contenido, self.banda_error):
             politica = pieza.sizePolicy()
             politica.setRetainSizeWhenHidden(True)
             pieza.setSizePolicy(politica)
 
+        # El contexto ("Para R = 5 cm, n = 10…") comparte la fila del título.
+        self.diseno.removeWidget(self.encabezado)
+        fila_titulo = QHBoxLayout()
+        fila_titulo.setSpacing(8)
+        fila_titulo.addWidget(self.encabezado)
+        fila_titulo.addWidget(self.etiqueta_contexto, 1)
+        self.diseno.insertLayout(0, fila_titulo)
         self.diseno.addWidget(self.banda_cancelado)
-        self.diseno.addWidget(self.banda_error)
         self.diseno.addLayout(celda)
 
     # --- construcción -----------------------------------------------------
@@ -84,10 +98,13 @@ class TarjetaResultado(Tarjeta):
         derecha = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
 
         self.etiqueta_contexto = etiqueta("", "contexto", palabras=True)
+        self.etiqueta_contexto.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         rotulo_principal = etiqueta("Perímetro aproximado", "rotulo")
         self.etiqueta_perimetro = etiqueta("", "valor")
         self.etiqueta_perimetro.setFont(
-            _fuente_de_cifras(base, 28 * self._escala, QFont.Weight.DemiBold)
+            _fuente_de_cifras(base, 24 * self._escala, QFont.Weight.DemiBold)
         )
         self.etiqueta_control = etiqueta("", "valor")
         self.etiqueta_error_abs = etiqueta("", "valor")
@@ -114,10 +131,9 @@ class TarjetaResultado(Tarjeta):
         filas.setContentsMargins(0, 0, 0, 0)
         filas.setHorizontalSpacing(12)
         filas.setVerticalSpacing(0)
-        filas.addWidget(self.etiqueta_contexto, 0, 0, 1, 2)
         filas.addWidget(rotulo_principal, 1, 0, 1, 2)
         filas.addWidget(self.etiqueta_perimetro, 2, 0, 1, 2)
-        filas.setRowMinimumHeight(3, 6)
+        filas.setRowMinimumHeight(3, 2)
         filas.addWidget(etiqueta("Valor de control", "rotulo"), 4, 0)
         filas.addWidget(self.etiqueta_control, 4, 1)
         filas.addWidget(self.nota_control, 5, 0, 1, 2)
@@ -156,10 +172,24 @@ class TarjetaResultado(Tarjeta):
     def mostrar_error(self, mensaje):
         """Banda roja con la causa del fallo; se ocultan los valores anteriores."""
         self.saltar_animacion()
+        mensaje = mensaje.strip()
         if not mensaje.startswith("No se pudo"):
-            mensaje = f"No se pudo calcular: {mensaje}"
+            mensaje = f"No se pudo calcular: {mensaje[:1].lower()}{mensaje[1:]}"
+        if "demasiado grande" in mensaje and "Pruebe" not in mensaje:
+            mensaje += " Pruebe con un radio menor."
         self.banda_cancelado.setVisible(False)
         self.banda_error.mostrar(mensaje)
+        # Los valores viejos se borran (no solo se ocultan): así ni el código ni
+        # el Narrador pueden leer un número que contradice la banda.
+        for valor in (
+            self.etiqueta_perimetro,
+            self.etiqueta_control,
+            self.etiqueta_error_abs,
+            self.etiqueta_error_rel,
+            self.etiqueta_contexto,
+        ):
+            valor.setText("")
+        self.nota_cero.setVisible(False)
         self.contenido.setVisible(False)
         self.vacio.setVisible(False)
         self.setAccessibleName("Resultado. " + mensaje)
@@ -214,12 +244,12 @@ class TarjetaResultado(Tarjeta):
         self._ajustar_valor_principal()
 
     def _ajustar_valor_principal(self):
-        """Reduce los 28 pt si el número no cabe (radios muy grandes o pequeños)."""
+        """Reduce los 24 pt si el número no cabe (radios muy grandes o pequeños)."""
         etiqueta_valor = self.etiqueta_perimetro
         disponible = self.contenido.width() - 8
         if disponible <= 8:
             return
-        puntos = 28 * self._escala
+        puntos = 24 * self._escala
         fuente = _fuente_de_cifras(self.font(), puntos, QFont.Weight.DemiBold)
         while puntos > 14:
             etiqueta_valor.setFont(fuente)

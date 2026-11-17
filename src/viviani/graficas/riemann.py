@@ -8,7 +8,12 @@ from matplotlib.colors import to_rgba
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from viviani.formato import formatear_decimal, formatear_radio, nombre_metodo
+from viviani.formato import (
+    formatear_decimal,
+    formatear_entero,
+    formatear_radio,
+    nombre_metodo,
+)
 from viviani.graficas.animacion import salida_suave
 from viviani.graficas.estilo import (
     FORMATO_MARCAS,
@@ -73,7 +78,7 @@ class GraficaRiemann(LienzoBase):
     def mostrar_resultado(self, resultado, animar=True, reducir_movimiento=False):
         self.radio = resultado.radio
         self.resultado = resultado
-        self.redibujar()
+        self.redibujar(repintar=not animar)
         if not animar:
             self.animacion_terminada.emit()
             return
@@ -118,7 +123,8 @@ class GraficaRiemann(LienzoBase):
         r = self.resultado
         if r is None:
             return f"f(t) = R√(1 + cos²t) con R = {formatear_radio(self.radio)} cm"
-        return f"Suma de Riemann con n = {r.n} ({nombre_metodo(r.metodo)})"
+        n, metodo = formatear_entero(r.n), nombre_metodo(r.metodo)
+        return f"Suma de Riemann con n = {n} ({metodo})"
 
     def nombre_sugerido(self):
         radio = formatear_radio(self.radio).replace(",", "-")
@@ -193,21 +199,21 @@ class GraficaRiemann(LienzoBase):
 
     def _poner_anotacion(self, eje, colores, estilo):
         texto = f"Σ f(tᵢ)·Δt = {formatear_decimal(self.resultado.perimetro)} cm"
-        # Sobre el valle de f en 3π/2: ahí la curva deja espacio libre arriba
+        # Abajo al centro, dentro de los rectángulos: ahí nunca llega la curva
         eje.text(
-            0.75,
-            0.98,
+            0.5,
+            0.04,
             texto,
             transform=eje.transAxes,
             ha="center",
-            va="top",
+            va="bottom",
             fontsize=estilo.leyenda,
             color=colores["texto"],
             zorder=5,
             bbox={
                 "facecolor": colores["superficie"],
                 "edgecolor": "none",
-                "alpha": 0.9,
+                "alpha": 0.85,
                 "pad": 2,
             },
         )

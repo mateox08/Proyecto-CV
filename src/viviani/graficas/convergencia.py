@@ -10,8 +10,11 @@ from viviani.graficas.lienzo import LienzoBase
 
 DURACION_FUNDIDO_MS = 300
 DURACION_FUNDIDO_REDUCIDO_MS = 150
-ERROR_MINIMO = 1e-15  # por debajo se dibuja sobre la línea inferior
+ERROR_EJE_MINIMO = 1e-16  # deja sitio bajo la línea del límite para su rótulo
 NIVEL_REDONDEO = 1e-14  # error típico por redondeo del computador
+# Todo error hasta este valor (incluido 0) es ruido de redondeo: se dibuja
+# sobre la línea del límite con un marcador hueco, y la meseta queda plana.
+LIMITE_RUIDO = 2e-14
 
 # Cómo se dibuja cada método: color, trazo, marcador, tamaño, relleno
 SERIES = {
@@ -68,7 +71,7 @@ class GraficaConvergencia(LienzoBase):
     def marcar_actual(self, resultado, animar=True, reducir_movimiento=False):
         """Muestra el punto del cálculo actual con un fundido."""
         self.resultado = resultado
-        self.redibujar()
+        self.redibujar(repintar=not animar)
         punto = self._elementos["punto"]
         if not animar:
             self.animacion_terminada.emit()
@@ -104,11 +107,15 @@ class GraficaConvergencia(LienzoBase):
                 "Gráfica de convergencia del error relativo según n para los "
                 "métodos punto medio, izquierda y derecha."
             )
+        n, metodo = formatear_entero(r.n), nombre_metodo(r.metodo)
+        inicio = f"Convergencia: con n = {n} y {metodo}, "
+        if r.error_relativo <= LIMITE_RUIDO:
+            return inicio + (
+                "el error relativo es menor que el límite de precisión del computador."
+            )
         return (
-            f"Convergencia: con n = {formatear_entero(r.n)} y "
-            f"{nombre_metodo(r.metodo)}, "
-            f"el error relativo es {texto_cientifico_hablado(r.error_relativo)} "
-            "por ciento."
+            inicio + f"el error relativo es "
+            f"{texto_cientifico_hablado(r.error_relativo)} por ciento."
         )
 
     # --- Dibujo (pantalla y exportación) -----------------------------------
@@ -122,15 +129,15 @@ class GraficaConvergencia(LienzoBase):
             # Se dibuja primero el punto medio para que quede debajo de los demás
             for metodo in ("punto_medio", "izquierda", "derecha"):
                 self._dibujar_serie(eje, metodo, colores, estilo)
-        self._poner_leyenda(eje, colores, estilo)
+        self._poner_leyenda(fig, colores, estilo)
         return self._dibujar_actual(eje, colores, estilo)
 
     def _dar_formato_ejes(self, eje, estilo):
         eje.set_xscale("log")
         eje.set_yscale("log")
         eje.set_xlim(1, 1e7)
-        eje.set_ylim(ERROR_MINIMO, 1e2)
-        eje.set_yticks([10.0**e for e in range(-14, 3, 2)])
+        eje.set_ylim(ERROR_EJE_MINIMO, 1e2)
+        eje.set_yticks([10.0**e for e in range(-14, 3, 4)])
         eje.minorticks_off()
         eje.set_xlabel("Número de subintervalos n", fontsize=estilo.rotulo)
         eje.set_ylabel("Error relativo (%)", fontsize=estilo.rotulo)
@@ -143,14 +150,15 @@ class GraficaConvergencia(LienzoBase):
             linewidth=1 * estilo.lineas,
             zorder=2,
         )
+        # Justo debajo de la línea, donde no hay datos
         eje.text(
-            0.99,
-            NIVEL_REDONDEO * 1.6,
+            0.55,
+            NIVEL_REDONDEO / 6,
             "Límite de precisión del computador",
             transform=eje.get_yaxis_transform(),
-            ha="right",
-            va="bottom",
-            fontsize=estilo.marcas,
+            ha="center",
+            va="top",
+            fontsize=estilo.marcas * 0.9,
             color=colores["texto_sec"],
         )
 
@@ -159,50 +167,42 @@ class GraficaConvergencia(LienzoBase):
         color = colores[formato["color"]]
         valores_n, errores = self.datos[metodo]
         errores = np.asarray(errores, dtype=float)
-        # Errores nulos o diminutos: se dibujan sobre la línea inferior
-        en_el_piso = errores < ERROR_MINIMO
-        alturas = np.where(en_el_piso, ERROR_MINIMO, errores)
+        # Ruido de redondeo (incluido 0): sobre la línea del límite, marcador hueco
+        ruido = errores <= LIMITE_RUIDO
+        alturas = np.where(ruido, NIVEL_REDONDEO, errores)
+        # Con n = 1…64 habría una mancha de marcadores: se dibuja uno de cada cuatro
+        marcar = (valores_n > 64) | (valores_n % 4 == 0) | (valores_n == 1)
         tamano = formato["tamano"] * estilo.marcadores
-        grosor = 1.5 * estilo.lineas
         eje.plot(
             valores_n,
             alturas,
             color=color,
             linestyle=formato["trazo"],
-            linewidth=grosor,
+            linewidth=1.5 * estilo.lineas,
             zorder=3,
         )
-        relleno = "none" if formato["hueco"] else color
-        eje.plot(
-            valores_n[~en_el_piso],
-            alturas[~en_el_piso],
-            linestyle="",
-            zorder=4,
-            marker=formato["marcador"],
-            markersize=tamano,
-            markerfacecolor=relleno,
-            markeredgecolor=color,
-            markeredgewidth=1.2 * estilo.lineas,
-        )
-        eje.plot(
-            valores_n[en_el_piso],
-            alturas[en_el_piso],
-            linestyle="",
-            zorder=4,
-            marker=formato["marcador"],
-            markersize=tamano,
-            markerfacecolor="none",
-            markeredgecolor=color,
-            markeredgewidth=1.2 * estilo.lineas,
-            clip_on=False,
-        )
+        for ruidosos, hueco in ((~ruido, formato["hueco"]), (ruido, True)):
+            visibles = ruidosos & marcar
+            eje.plot(
+                valores_n[visibles],
+                alturas[visibles],
+                linestyle="",
+                zorder=4,
+                marker=formato["marcador"],
+                markersize=tamano,
+                markerfacecolor="none" if hueco else color,
+                markeredgecolor=color,
+                markeredgewidth=1.2 * estilo.lineas,
+            )
 
     def _dibujar_actual(self, eje, colores, estilo):
         """Rombo del cálculo actual con anillo y rótulo (solo de su método)."""
         r = self.resultado
         if r is None:
             return {"punto": None, "rotulo": None}
-        altura = max(r.error_relativo, ERROR_MINIMO)
+        altura = (
+            NIVEL_REDONDEO if r.error_relativo <= LIMITE_RUIDO else r.error_relativo
+        )
         (punto,) = eje.plot(
             [r.n],
             [altura],
@@ -216,11 +216,11 @@ class GraficaConvergencia(LienzoBase):
             markeredgewidth=2 * estilo.lineas,
         )
         # Cerca del borde derecho el rótulo se escribe hacia la izquierda
-        a_la_derecha = r.n > 1e5
+        a_la_derecha = r.n > 3000
         rotulo = eje.annotate(
             f"n = {formatear_entero(r.n)} (actual)",
             (r.n, altura),
-            xytext=(-12 if a_la_derecha else 12, 12),
+            xytext=(-8 if a_la_derecha else 8, 10),
             textcoords="offset points",
             ha="right" if a_la_derecha else "left",
             va="bottom",
@@ -236,7 +236,7 @@ class GraficaConvergencia(LienzoBase):
         )
         return {"punto": punto, "rotulo": rotulo}
 
-    def _poner_leyenda(self, eje, colores, estilo):
+    def _poner_leyenda(self, fig, colores, estilo):
         elementos, rotulos = [], []
         for metodo in ("punto_medio", "izquierda", "derecha"):
             formato = SERIES[metodo]
@@ -267,10 +267,14 @@ class GraficaConvergencia(LienzoBase):
             )
         )
         rotulos.append("Cálculo actual")
-        # La nota va como última fila de la leyenda, sin símbolo
-        elementos.append(Line2D([], [], linestyle=""))
-        rotulos.append("Izquierda y derecha coinciden.")
-        # Arriba a la derecha: abajo a la izquierda taparía la caída del error
-        leyenda = eje.legend(elementos, rotulos, loc="upper right")
+        # Debajo del eje, compacta y fuera del área de datos
+        leyenda = fig.legend(
+            elementos,
+            rotulos,
+            loc="outside lower center",
+            ncols=len(elementos),
+            frameon=False,
+            columnspacing=1.0,
+            handlelength=1.8,
+        )
         poner_leyenda(leyenda, colores)
-        leyenda.get_texts()[-1].set_color(colores["texto_sec"])

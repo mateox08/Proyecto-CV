@@ -357,6 +357,35 @@ class PruebasCalculo(BaseVentana):
         )
         self.assertTrue(ventana.tarjeta_resultado.banda_error.isVisible())
 
+    def test_error_de_calculo_borra_los_valores_anteriores(self):
+        ventana = self.crear()
+        ventana.calcular_ahora()
+        self.assertTrue(esperar(lambda: ventana.etiqueta_perimetro.text() != ""))
+        ventana._calcular = CalculoFalso(
+            error=ValueError("El resultado es demasiado grande para representarse.")
+        )
+        ventana.campo_radio.setText("1e308")
+        ventana.calcular_ahora()
+        self.assertTrue(
+            esperar(lambda: ventana.tarjeta_resultado.banda_error.isVisible())
+        )
+        resultado = ventana.tarjeta_resultado
+        self.assertEqual(
+            resultado.banda_error.texto.text(),
+            "No se pudo calcular: el resultado es demasiado grande para "
+            "representarse. Pruebe con un radio menor.",
+        )
+        for etiqueta in (
+            ventana.etiqueta_perimetro,
+            ventana.etiqueta_control,
+            ventana.etiqueta_error_abs,
+            ventana.etiqueta_error_rel,
+        ):
+            self.assertEqual(etiqueta.text(), "")
+        self.assertFalse(resultado.contenido.isVisible())
+        self.assertNotIn("38,201673", resultado.accessibleName())
+        self.assertIn("Pruebe con un radio menor", resultado.accessibleName())
+
     def test_aviso_de_muestra_con_n_grande(self):
         calculo = CalculoFalso()
         ventana = self.crear(calculo)

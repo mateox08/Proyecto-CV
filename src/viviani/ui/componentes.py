@@ -102,10 +102,11 @@ class Tarjeta(QFrame):
         super().__init__()
         self.setObjectName("tarjeta")
         self.diseno = QVBoxLayout(self)
-        # 16 DIP a los lados; 12 arriba y abajo para que las tres tarjetas de la
-        # izquierda quepan sin desplazamiento en una ventana de 1536 x 864.
-        self.diseno.setContentsMargins(16, 12, 16, 12)
-        self.diseno.setSpacing(6)
+        # 16 DIP a los lados; 10 arriba y abajo para que las tres tarjetas de la
+        # izquierda quepan sin desplazamiento en la ventana maximizada de
+        # 1536 x 793 DIP (1920 x 1080 al 125 % con barra de tareas).
+        self.diseno.setContentsMargins(16, 10, 16, 10)
+        self.diseno.setSpacing(4)
         self.encabezado = etiqueta(titulo, "encabezado")
         self.diseno.addWidget(self.encabezado)
 

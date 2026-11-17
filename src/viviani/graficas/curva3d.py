@@ -82,6 +82,8 @@ class GraficaCurva3D(LienzoBase):
     # --- Interfaz pública ----------------------------------------------
     def mostrar(self, radio):
         """Redibuja la curva para el radio R (la vista se conserva)."""
+        if radio == self.radio:
+            return  # mismo radio: no hay nada que redibujar (cuesta ~90 ms)
         self.radio = radio
         self._guardar_vista()
         self.redibujar()

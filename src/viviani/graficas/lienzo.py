@@ -9,6 +9,7 @@ import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPalette
 
 from viviani.graficas.animacion import Animador, Repintado
 from viviani.graficas.estilo import (
@@ -51,15 +52,32 @@ class LienzoBase(FigureCanvasQTAgg):
         raise NotImplementedError
 
     # --- Dibujo en pantalla ------------------------------------------
-    def redibujar(self):
-        """Reconstruye la figura de pantalla con el estado actual."""
+    def redibujar(self, repintar=True):
+        """Reconstruye la figura de pantalla con el estado actual.
+
+        Con repintar=False no pide repintado: sirve cuando enseguida se
+        dibuja el primer cuadro de una animación (así no se dibuja dos veces).
+        """
         self._detener_animacion()
         self.figure.clear()
         estilo = estilo_pantalla(self.escala_texto)
         with matplotlib.rc_context(rc_de(self.colores, estilo)):
             self._elementos = self._dibujar(self.figure, self.colores, estilo)
+        self._pintar_fondo_del_widget()
         self.setAccessibleName(self.descripcion_accesible())
-        self.draw_idle()
+        if repintar:
+            self.draw_idle()
+
+    def _pintar_fondo_del_widget(self):
+        """El widget se pinta del color de la figura.
+
+        Con escalado de pantalla (p. ej. 125 %) la imagen de la figura puede
+        quedar 1 px más angosta que el widget; sin esto esa columna se vería
+        del color de la ventana."""
+        paleta_qt = self.palette()
+        paleta_qt.setColor(QPalette.Window, QColor(self.colores["superficie"]))
+        self.setPalette(paleta_qt)
+        self.setAutoFillBackground(True)
 
     def aplicar_tema(self, colores):
         """Cambia entre modo claro y oscuro en caliente."""
