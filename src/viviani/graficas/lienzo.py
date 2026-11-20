@@ -9,7 +9,7 @@ import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QColor, QImage, QPainter, QPalette
 
 from viviani.graficas.animacion import Animador, Repintado
 from viviani.graficas.estilo import (
@@ -81,6 +81,27 @@ class LienzoBase(FigureCanvasQTAgg):
         # matplotlib marca su lienzo como opaco (Qt no pinta nada debajo);
         # aquí se desmarca para que sí se vea la tarjeta a través.
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
+
+    def paintEvent(self, evento):
+        """Pega en el widget la imagen que dibujó matplotlib.
+
+        matplotlib, por defecto, copia solo el trozo que Qt pide repintar.
+        Con la pantalla escalada (125 %) ese trozo se calcula con redondeos y
+        queda corrido: al pasar la luz del cursor aparecían rayas y textos
+        duplicados. Aquí se pega siempre la imagen COMPLETA y Qt recorta lo
+        que haga falta, así nunca queda desalineada.
+        """
+        self._draw_idle()  # dibuja si había un dibujo pendiente
+        if not hasattr(self, "renderer"):
+            return
+        datos = self.renderer.buffer_rgba()
+        alto, ancho = datos.shape[0], datos.shape[1]
+        imagen = QImage(datos, ancho, alto, QImage.Format.Format_RGBA8888)
+        imagen.setDevicePixelRatio(self.device_pixel_ratio)
+        pintor = QPainter(self)
+        pintor.setClipRegion(evento.region())
+        pintor.drawImage(0, 0, imagen)
+        pintor.end()
 
     def aplicar_tema(self, colores):
         """Cambia entre modo claro y oscuro en caliente."""
