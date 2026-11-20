@@ -49,8 +49,8 @@ def rc_de(colores, estilo):
         "font.family": FAMILIAS_GRAFICAS,
         "mathtext.fontset": "dejavusans",
         "font.size": estilo.marcas,
-        "figure.facecolor": colores["superficie"],
-        "axes.facecolor": colores["superficie"],
+        "figure.facecolor": colores["fondo_grafica"],
+        "axes.facecolor": colores["fondo_grafica"],
         "axes.edgecolor": colores["borde"],
         "axes.labelcolor": colores["texto"],
         "axes.labelsize": estilo.rotulo,
@@ -65,7 +65,7 @@ def rc_de(colores, estilo):
         "legend.facecolor": colores["superficie"],
         "legend.edgecolor": colores["separador"],
         "legend.framealpha": 0.9,
-        "savefig.facecolor": colores["superficie"],
+        "savefig.facecolor": colores["fondo_grafica"],
     }
 
 
@@ -81,7 +81,7 @@ FORMATO_MARCAS = FuncFormatter(formatear_marca)
 
 def poner_titulo(fig, texto, colores, estilo):
     """Fondo de la figura y título (dentro de la figura: es el mensaje principal)."""
-    fig.set_facecolor(colores["superficie"])
+    fig.set_facecolor(colores["fondo_grafica"])
     fig.suptitle(
         texto, fontsize=estilo.titulo, fontweight="semibold", color=colores["texto"]
     )
@@ -89,7 +89,7 @@ def poner_titulo(fig, texto, colores, estilo):
 
 def preparar_ejes_2d(ax, colores, estilo):
     """Solo ejes izquierdo e inferior, rejilla mayor detrás de los datos."""
-    ax.set_facecolor(colores["superficie"])
+    ax.set_facecolor(colores["fondo_grafica"])
     for lado in ("top", "right"):
         ax.spines[lado].set_visible(False)
     for lado in ("left", "bottom"):

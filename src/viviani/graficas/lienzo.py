@@ -69,15 +69,18 @@ class LienzoBase(FigureCanvasQTAgg):
             self.draw_idle()
 
     def _pintar_fondo_del_widget(self):
-        """El widget se pinta del color de la figura.
+        """El widget no pinta fondo propio: la figura es transparente y deja
+        ver la tarjeta de detrás (y la luz que sigue al cursor).
 
-        Con escalado de pantalla (p. ej. 125 %) la imagen de la figura puede
-        quedar 1 px más angosta que el widget; sin esto esa columna se vería
-        del color de la ventana."""
+        matplotlib "borra" el widget con el color Window de la paleta antes de
+        dibujar; con un color transparente ese borrado no tapa nada."""
         paleta_qt = self.palette()
-        paleta_qt.setColor(QPalette.Window, QColor(self.colores["superficie"]))
+        paleta_qt.setColor(QPalette.Window, QColor(0, 0, 0, 0))
         self.setPalette(paleta_qt)
-        self.setAutoFillBackground(True)
+        self.setAutoFillBackground(False)
+        # matplotlib marca su lienzo como opaco (Qt no pinta nada debajo);
+        # aquí se desmarca para que sí se vea la tarjeta a través.
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
 
     def aplicar_tema(self, colores):
         """Cambia entre modo claro y oscuro en caliente."""

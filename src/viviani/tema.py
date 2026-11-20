@@ -13,6 +13,9 @@ _COLORES = {
     "rejilla":            "#D3DDEC",
     # Tarjetas tipo "vidrio"
     "superficie":         "#FBFCFE",
+    # Fondo de las gráficas en pantalla: transparente (se ve la tarjeta y,
+    # a través de ella, la luz del cursor). Formato #RRGGBBAA.
+    "fondo_grafica":      "#FFFFFF00",
     "borde":              "#D9E2EF",
     "borde_brillo":       "#8DBBF0",
     "separador":          "#E3E9F2",
@@ -63,6 +66,7 @@ def paleta_exportacion():
     """Paleta para las imágenes PNG del reporte: fondo blanco y texto negro."""
     colores = paleta()
     colores["superficie"] = "#FFFFFF"
+    colores["fondo_grafica"] = "#FFFFFF"
     colores["fondo"] = "#FFFFFF"
     colores["texto"] = "#000000"
     colores["texto_sec"] = "#000000"

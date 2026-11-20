@@ -200,7 +200,8 @@ class GraficaCurva3D(QWidget):
 
     def _pintar(self, pintor, ancho, alto, colores, exportando):
         pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pintor.fillRect(QRectF(0, 0, ancho, alto), QColor(colores["superficie"]))
+        if exportando:  # en pantalla el fondo es transparente: se ve la tarjeta
+            pintor.fillRect(QRectF(0, 0, ancho, alto), QColor(colores["superficie"]))
 
         lado = min(ancho, alto)
         escala = 0.36 * lado  # radio de la esfera en píxeles

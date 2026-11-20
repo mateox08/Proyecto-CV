@@ -254,7 +254,8 @@ class Tarjeta(QFrame):
 
         borde = mezclar(c["borde"], c["borde_brillo"], self._luz)
         pintor.setPen(QPen(borde, 1.2))
-        pintor.setBrush(QColor(c["superficie"]))
+        # Algo transparente, como vidrio: deja pasar la luz del cursor
+        pintor.setBrush(con_alfa(c["superficie"], 0.78))
         pintor.drawRoundedRect(panel, radio, radio)
 
 
