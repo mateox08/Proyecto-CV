@@ -65,7 +65,8 @@ separado.
    n = 10 000 000.
 4. **`calculo.py`** hace la suma y devuelve un `Resultado` (perímetro, valor
    de control, errores y los rectángulos para dibujar).
-5. **`ui/resultado.py`** escribe los números con **`formato.py`**.
+5. **`ui/resultado.py`** escribe los números con **`formato.py`** (el perímetro
+   "cuenta" hasta su valor nuevo y las demás filas aparecen en cascada).
 6. **`graficas/`** dibuja los rectángulos animados y actualiza el radio en la
    curva 3D (que gira sola todo el tiempo).
 7. **`sonido.py`** hace sonar el aviso de "resultado listo".
@@ -117,7 +118,8 @@ resultados se muestran siempre con punto decimal.
 
 ### 5.5 `tema.py`
 
-Una tabla con cada color (un solo tema, claro), las fuentes y la función
+Una tabla con cada color (un solo tema, oscuro; y otra tabla clara para los
+PNG del reporte), las fuentes y la función
 `razon_de_contraste`, que aplica la fórmula de accesibilidad WCAG. Una prueba
 automática comprueba que todo texto tenga contraste suficiente (4,5 a 1).
 
@@ -151,12 +153,14 @@ pasado** y dibuja lo que corresponde a ese instante. Por eso dura lo mismo
 | Archivo | Qué contiene |
 |---|---|
 | `ventana.py` | La ventana principal: arma las tarjetas y responde a los eventos. |
-| `componentes.py` | Piezas visuales: fondo cuadriculado, tarjetas que se iluminan, botones que brillan al acercar el cursor, campo con mensaje de error. |
-| `resultado.py` | La tarjeta que muestra los cuatro valores. |
+| `componentes.py` | Piezas visuales: fondo de puntos con auroras que se enciende alrededor del cursor, campos con una línea que se ilumina, y el botón "orbe" (respira, brilla al acercar el cursor, lanza una onda al pulsarlo y muestra el progreso como un arco). |
+| `resultado.py` | El panel que muestra los cuatro valores. |
 | `estilos.py` | Convierte la paleta de `tema.py` en la hoja de estilos de Qt. |
 | `trabajador.py` | El hilo de cálculo y su cancelación. |
 | `sistema.py` | Pregunta a Windows si hay que reducir animaciones o agrandar el texto. |
 | `iconos.py` | Carga los iconos (Lucide, licencia libre). |
+| `logo.py` | Dibuja el logo (la curva vista de frente, un "8"). Lo usan la pantalla de carga, el encabezado y el icono del `.exe`. |
+| `carga.py` | La pantalla de carga que aparece mientras se preparan numpy y matplotlib. |
 
 Qt funciona con **señales**: un objeto "avisa" que algo pasó y otro "escucha".
 Por ejemplo, el hilo de cálculo emite la señal `terminado` con el resultado y
@@ -166,6 +170,12 @@ la ventana, que la estaba escuchando, lo muestra.
 
 Crea cada pieza y se las entrega a la ventana. Es el único archivo que conoce
 a todas.
+
+Arranca por etapas: primero muestra la pantalla de carga (que solo necesita
+Qt, así aparece en medio segundo) y después importa las librerías pesadas
+(numpy y matplotlib), avisando cada paso en esa pantalla. Por eso esos
+`import` están dentro de la función `crear_ventana` y no al principio del
+archivo.
 
 ## 6. Dos cosas que conviene saber explicar
 

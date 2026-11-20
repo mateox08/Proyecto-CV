@@ -1,43 +1,34 @@
-"""Piezas visuales reutilizables de la ventana.
+"""Piezas visuales reutilizables de la ventana (tema oscuro).
 
-FondoVentana     fondo degradado con una rejilla tenue (se dibuja una vez)
-Tarjeta          panel blanco con esquinas redondeadas que se ilumina
-                 cuando el mouse pasa por encima
-BotonBrillante   botón en forma de píldora que brilla más cuanto más
-                 cerca está el cursor
-CampoNumerico    etiqueta + caja de texto + mensaje de error
+FondoVentana   cielo azul noche con rejilla de puntos y auroras; los
+               puntos se encienden alrededor del cursor
+Separador      línea fina con degradado cian-violeta
+CampoLinea     etiqueta + número grande sobre una línea que se ilumina
+               al escribir + mensaje de error
+BotonOrbe      botón circular "Calcular": respira, brilla al acercar el
+               cursor, lanza una onda al pulsarlo y muestra el progreso
+               como un arco a su alrededor
 """
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QVariantAnimation
+from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, QVariantAnimation
 from PySide6.QtGui import (
     QColor,
+    QConicalGradient,
     QFont,
     QLinearGradient,
     QPainter,
-    QPainterPath,
     QPen,
     QPixmap,
     QRadialGradient,
 )
-from PySide6.QtWidgets import (
-    QFrame,
-    QGraphicsDropShadowEffect,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QSizePolicy,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 from viviani import tema
-from viviani.ui import iconos
 
-DURACION_BRILLO_MS = 220  # encender/apagar el brillo de una tarjeta
-DISTANCIA_BRILLO = 120  # px: desde aquí el botón empieza a brillar
+DURACION_FOCO_MS = 260  # la línea del campo se enciende desde el centro
+DISTANCIA_BRILLO = 140  # px: desde aquí el orbe empieza a brillar
 
 
 def mezclar(color_a, color_b, proporcion):
@@ -70,20 +61,29 @@ def fuente(familias, puntos, peso=QFont.Weight.Normal, espaciado=0.0):
 def etiqueta_pequena(texto):
     """Etiqueta en mayúsculas, monoespaciada y con letras separadas."""
     rotulo = QLabel(texto.upper())
-    rotulo.setFont(fuente(tema.FAMILIAS_MONO, 8.5, espaciado=1.8))
+    rotulo.setFont(fuente(tema.FAMILIAS_MONO, 8.5, espaciado=2.2))
     rotulo.setProperty("rol", "etiqueta")
     return rotulo
+
+
+def degradado_cian_violeta(x0, x1, alfa=1.0):
+    """Degradado horizontal de cian a violeta (el sello de la app)."""
+    colores = tema.paleta()
+    degradado = QLinearGradient(x0, 0, x1, 0)
+    degradado.setColorAt(0, con_alfa(colores["acento"], alfa))
+    degradado.setColorAt(1, con_alfa(colores["violeta"], alfa))
+    return degradado
 
 
 # ---------------------------------------------------------------------------
 # Fondo
 # ---------------------------------------------------------------------------
 class FondoVentana(QWidget):
-    """Fondo de toda la ventana. Se dibuja una sola vez por tamaño y se
-    guarda como imagen, así redibujarlo no cuesta casi nada."""
+    """Fondo de toda la ventana. Se dibuja una vez por tamaño y se guarda
+    como imagen; luego solo se repinta el círculo de luz del cursor."""
 
-    LADO_REJILLA = 36
-    RADIO_LUZ = 200  # px: tamaño del círculo de luz que sigue al cursor
+    PASO_PUNTOS = 28  # px entre puntos de la rejilla
+    RADIO_LUZ = 220
 
     def __init__(self, colores):
         super().__init__()
@@ -120,33 +120,11 @@ class FondoVentana(QWidget):
         if self._luz is not None:
             self._dibujar_luz(pintor)
 
-    def _dibujar_luz(self, pintor):
-        """Un resplandor suave y la rejilla más marcada cerca del cursor."""
-        c = self.colores
-        centro = QPointF(self._luz)
-        r = self.RADIO_LUZ
-        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        resplandor = QRadialGradient(centro, r)
-        resplandor.setColorAt(0, con_alfa("#FFFFFF", 0.55))
-        resplandor.setColorAt(0.5, con_alfa(c["brillo"], 0.10))
-        resplandor.setColorAt(1, con_alfa(c["brillo"], 0.0))
-        pintor.setPen(Qt.PenStyle.NoPen)
-        pintor.setBrush(resplandor)
-        pintor.drawEllipse(centro, r, r)
-
-        # Las líneas de la rejilla se encienden: el color de la pluma es un
-        # degradado que se apaga con la distancia al cursor
-        lineas = QRadialGradient(centro, r * 0.8)
-        lineas.setColorAt(0, con_alfa(c["brillo"], 0.55))
-        lineas.setColorAt(1, con_alfa(c["brillo"], 0.0))
-        pintor.setPen(QPen(lineas, 1))
-        lado = self.LADO_REJILLA
-        x0, y0 = int(centro.x() - r), int(centro.y() - r)
-        for x in range(max(0, x0 - x0 % lado), int(centro.x() + r), lado):
-            pintor.drawLine(x, y0, x, y0 + 2 * r)
-        for y in range(max(0, y0 - y0 % lado), int(centro.y() + r), lado):
-            pintor.drawLine(x0, y, x0 + 2 * r, y)
+    def _puntos_de_rejilla(self, x0, y0, x1, y1):
+        paso = self.PASO_PUNTOS
+        for x in range(max(0, int(x0) - int(x0) % paso), int(x1) + 1, paso):
+            for y in range(max(0, int(y0) - int(y0) % paso), int(y1) + 1, paso):
+                yield x, y
 
     def _dibujar_fondo(self):
         c = self.colores
@@ -160,246 +138,82 @@ class FondoVentana(QWidget):
         degradado.setColorAt(1, QColor(c["fondo_2"]))
         pintor.fillRect(imagen.rect(), degradado)
 
-        # Dos manchas de luz muy suaves (azul arriba a la izquierda,
-        # turquesa abajo a la derecha)
-        for x, y, radio, nombre in (
-            (0.15, 0.10, 0.55, "brillo"),
-            (0.90, 0.95, 0.50, "serie_turquesa"),
+        # Auroras: manchas de luz muy suaves de colores
+        for x, y, radio, nombre, alfa in (
+            (0.12, 0.05, 0.45, "acento", 0.13),
+            (0.55, 0.40, 0.35, "violeta", 0.09),
+            (0.95, 0.95, 0.45, "violeta", 0.10),
+            (0.30, 1.00, 0.40, "acento", 0.07),
         ):
             centro = QPointF(x * ancho, y * alto)
             mancha = QRadialGradient(centro, radio * max(ancho, alto))
-            mancha.setColorAt(0, con_alfa(c[nombre], 0.16))
+            mancha.setColorAt(0, con_alfa(c[nombre], alfa))
             mancha.setColorAt(1, con_alfa(c[nombre], 0.0))
             pintor.fillRect(imagen.rect(), mancha)
 
-        # Rejilla tenue, como una hoja cuadriculada
-        pintor.setPen(QPen(con_alfa(c["rejilla"], 0.55), 1))
-        for x in range(0, ancho, self.LADO_REJILLA):
-            pintor.drawLine(x, 0, x, alto)
-        for y in range(0, alto, self.LADO_REJILLA):
-            pintor.drawLine(0, y, ancho, y)
+        # Rejilla de puntos, como papel punteado
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(con_alfa(c["rejilla"], 0.55))
+        for x, y in self._puntos_de_rejilla(0, 0, ancho, alto):
+            pintor.drawEllipse(QPointF(x, y), 1.0, 1.0)
         pintor.end()
         return imagen
 
+    def _dibujar_luz(self, pintor):
+        """Un resplandor y los puntos de la rejilla encendidos cerca del cursor."""
+        c = self.colores
+        centro = QPointF(self._luz)
+        r = self.RADIO_LUZ
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        resplandor = QRadialGradient(centro, r)
+        resplandor.setColorAt(0, con_alfa(c["acento"], 0.10))
+        resplandor.setColorAt(0.6, con_alfa(c["violeta"], 0.03))
+        resplandor.setColorAt(1, con_alfa(c["violeta"], 0.0))
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(resplandor)
+        pintor.drawEllipse(centro, r, r)
+
+        # Los puntos se encienden: su relleno es un degradado que se apaga
+        # con la distancia al cursor
+        puntos = QRadialGradient(centro, 0.75 * r)
+        puntos.setColorAt(0, con_alfa(c["acento"], 0.6))
+        puntos.setColorAt(1, con_alfa(c["acento"], 0.0))
+        pintor.setBrush(puntos)
+        for x, y in self._puntos_de_rejilla(
+            centro.x() - r, centro.y() - r, centro.x() + r, centro.y() + r
+        ):
+            pintor.drawEllipse(QPointF(x, y), 1.4, 1.4)
+
 
 # ---------------------------------------------------------------------------
-# Tarjeta
+# Separador
 # ---------------------------------------------------------------------------
-class Tarjeta(QFrame):
-    """Panel blanco redondeado. Al pasar el mouse, su borde se ilumina."""
+class Separador(QWidget):
+    """Línea horizontal que se desvanece en los extremos."""
 
-    MARGEN_BRILLO = 10  # espacio alrededor del panel para dibujar el halo
-
-    def __init__(self, colores, titulo=None):
+    def __init__(self):
         super().__init__()
-        self.colores = colores
-        self._luz = 0.0  # 0 = apagada, 1 = iluminada
-        self._animacion = QVariantAnimation(self)
-        self._animacion.setDuration(DURACION_BRILLO_MS)
-        self._animacion.valueChanged.connect(self._al_cambiar_luz)
-
-        m = self.MARGEN_BRILLO
-        self.contenido = QVBoxLayout(self)
-        self.contenido.setContentsMargins(m + 22, m + 18, m + 22, m + 20)
-        self.contenido.setSpacing(10)
-
-        self.cabecera = QHBoxLayout()
-        self.cabecera.setSpacing(8)
-        if titulo:
-            self.cabecera.addWidget(etiqueta_pequena(titulo))
-        self.cabecera.addStretch(1)
-        self.contenido.addLayout(self.cabecera)
-
-    def enterEvent(self, evento):
-        self._encender(1.0)
-        super().enterEvent(evento)
-
-    def leaveEvent(self, evento):
-        self._encender(0.0)
-        super().leaveEvent(evento)
-
-    def _encender(self, destino):
-        self._animacion.stop()
-        self._animacion.setStartValue(self._luz)
-        self._animacion.setEndValue(destino)
-        self._animacion.start()
-
-    def _al_cambiar_luz(self, valor):
-        self._luz = float(valor)
-        self.update()
+        self.setFixedHeight(9)
 
     def paintEvent(self, _evento):
-        c = self.colores
+        c = tema.paleta()
         pintor = QPainter(self)
-        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
-        panel = QRectF(self.rect()).adjusted(*(self.MARGEN_BRILLO,) * 2,
-                                             *(-self.MARGEN_BRILLO,) * 2)  # fmt: skip
-        radio = tema.RADIO_TARJETA
-
-        # Sombra suave debajo del panel
-        pintor.setPen(Qt.PenStyle.NoPen)
-        for desplazamiento, alfa in ((6, 0.035), (3, 0.05)):
-            pintor.setBrush(con_alfa("#1E3C6E", alfa))
-            pintor.drawRoundedRect(panel.translated(0, desplazamiento), radio, radio)
-
-        # Halo de luz (solo cuando el mouse está encima)
-        if self._luz > 0:
-            for crecer, alfa in ((8, 0.06), (5, 0.10), (2.5, 0.16)):
-                pintor.setBrush(con_alfa(c["brillo"], alfa * self._luz))
-                pintor.drawRoundedRect(
-                    panel.adjusted(-crecer, -crecer, crecer, crecer),
-                    radio + crecer,
-                    radio + crecer,
-                )
-
-        borde = mezclar(c["borde"], c["borde_brillo"], self._luz)
-        pintor.setPen(QPen(borde, 1.2))
-        # Algo transparente, como vidrio: deja pasar la luz del cursor
-        pintor.setBrush(con_alfa(c["superficie"], 0.78))
-        pintor.drawRoundedRect(panel, radio, radio)
+        y = self.height() / 2
+        degradado = QLinearGradient(0, 0, self.width(), 0)
+        degradado.setColorAt(0.0, con_alfa(c["acento"], 0.0))
+        degradado.setColorAt(0.3, con_alfa(c["acento"], 0.45))
+        degradado.setColorAt(0.7, con_alfa(c["violeta"], 0.45))
+        degradado.setColorAt(1.0, con_alfa(c["violeta"], 0.0))
+        pintor.setPen(QPen(degradado, 1))
+        pintor.drawLine(QPointF(0, y), QPointF(self.width(), y))
 
 
 # ---------------------------------------------------------------------------
-# Botón con brillo
+# Campo con línea
 # ---------------------------------------------------------------------------
-class BotonBrillante(QPushButton):
-    """Botón en forma de píldora.
-
-    La ventana le avisa dónde está el cursor (`acercar`); cuanto más cerca,
-    más brilla y más se "levanta". Al presionarlo se hunde un poco.
-    variante: "principal" (relleno azul) o "secundario" (blanco con borde).
-    """
-
-    MARGEN = 12  # espacio para el halo
-
-    def __init__(self, colores, texto, nombre_icono=None, variante="principal"):
-        super().__init__(texto)
-        self.colores = colores
-        self.variante = variante
-        self._nombre_icono = nombre_icono
-        self._cerca = 0.0
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFont(fuente(tema.FAMILIAS_INTERFAZ, 11, QFont.Weight.DemiBold))
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        self._alto_pildora = 44 if variante == "principal" else 34
-
-    def sizeHint(self):
-        ancho_texto = self.fontMetrics().horizontalAdvance(self.text())
-        ancho = ancho_texto + 48 + (24 if self._nombre_icono else 0)
-        return QSize(ancho + 2 * self.MARGEN, self._alto_pildora + 2 * self.MARGEN)
-
-    def minimumSizeHint(self):
-        return self.sizeHint()
-
-    def acercar(self, cursor_global):
-        """Calcula el brillo según la distancia del cursor a la píldora."""
-        if not self.isVisible():
-            return
-        esquina = self.mapToGlobal(self.rect().topLeft())
-        pildora = QRectF(self._pildora()).translated(esquina.x(), esquina.y())
-        dx = max(
-            pildora.left() - cursor_global.x(), 0, cursor_global.x() - pildora.right()
-        )
-        dy = max(
-            pildora.top() - cursor_global.y(), 0, cursor_global.y() - pildora.bottom()
-        )
-        cerca = max(0.0, 1 - math.hypot(dx, dy) / DISTANCIA_BRILLO) ** 1.5
-        if abs(cerca - self._cerca) > 0.01:
-            self._cerca = cerca
-            self.update()
-
-    def _pildora(self):
-        alto = self._alto_pildora
-        arriba = (self.height() - alto) / 2
-        return QRectF(self.MARGEN, arriba, self.width() - 2 * self.MARGEN, alto)
-
-    def paintEvent(self, _evento):
-        c = self.colores
-        pintor = QPainter(self)
-        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pildora = self._pildora()
-        # Se levanta 2 px al acercarse y se hunde 1 px al presionar
-        pildora.translate(0, 1 if self.isDown() else -2 * self._cerca)
-        radio = pildora.height() / 2
-        brillo = self._cerca
-
-        pintor.setPen(Qt.PenStyle.NoPen)
-        if brillo > 0:
-            for crecer, alfa in ((10, 0.08), (6, 0.14), (3, 0.22)):
-                pintor.setBrush(con_alfa(c["brillo"], alfa * brillo))
-                pintor.drawRoundedRect(
-                    pildora.adjusted(-crecer, -crecer, crecer, crecer),
-                    radio + crecer,
-                    radio + crecer,
-                )
-
-        if self.variante == "principal":
-            relleno = QLinearGradient(pildora.topLeft(), pildora.bottomLeft())
-            relleno.setColorAt(0, mezclar(c["acento"], "#FFFFFF", 0.18 + 0.12 * brillo))
-            relleno.setColorAt(
-                1, QColor(c["acento_hover"] if self.isDown() else c["acento"])
-            )
-            pintor.setBrush(relleno)
-            color_texto = QColor(c["texto_sobre_acento"])
-        else:
-            pintor.setPen(QPen(mezclar(c["borde"], c["borde_brillo"], brillo), 1.2))
-            pintor.setBrush(mezclar("#FFFFFF", c["acento_suave"], 0.5 * brillo))
-            color_texto = QColor(c["acento"])
-        pintor.drawRoundedRect(pildora, radio, radio)
-
-        # Reflejo blanco en la mitad de arriba: da el aspecto de vidrio
-        reflejo = QPainterPath()
-        reflejo.addRoundedRect(
-            pildora.adjusted(2, 2, -2, -pildora.height() / 2), radio, radio
-        )
-        pintor.setPen(Qt.PenStyle.NoPen)
-        pintor.setBrush(con_alfa("#FFFFFF", 0.10 + 0.08 * brillo))
-        pintor.drawPath(reflejo)
-
-        if self.hasFocus():  # anillo de foco para quien usa el teclado
-            pintor.setPen(QPen(con_alfa(c["acento"], 0.6), 2))
-            pintor.setBrush(Qt.BrushStyle.NoBrush)
-            pintor.drawRoundedRect(pildora.adjusted(-4, -4, 4, 4), radio + 4, radio + 4)
-
-        # Icono y texto centrados
-        ancho_texto = self.fontMetrics().horizontalAdvance(self.text())
-        ancho_icono = 22 if self._nombre_icono else 0
-        x = pildora.center().x() - (ancho_texto + ancho_icono) / 2
-        if self._nombre_icono:
-            imagen = iconos.pixmap(self._nombre_icono, color_texto.name(), 16)
-            pintor.drawPixmap(QPointF(x, pildora.center().y() - 8), imagen)
-        pintor.setPen(color_texto)
-        pintor.setFont(self.font())
-        caja = QRectF(x + ancho_icono, pildora.top(), ancho_texto + 2, pildora.height())
-        izquierda = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
-        pintor.drawText(caja, izquierda, self.text())
-
-
-# ---------------------------------------------------------------------------
-# Campo numérico
-# ---------------------------------------------------------------------------
-class CajaConUnidad(QLineEdit):
-    """Caja de texto que muestra la unidad (por ejemplo "cm") a la derecha."""
-
-    def __init__(self, unidad=""):
-        super().__init__()
-        self.unidad = unidad
-        if unidad:
-            self.setTextMargins(0, 0, 34, 0)
-
-    def paintEvent(self, evento):
-        super().paintEvent(evento)
-        if self.unidad:
-            pintor = QPainter(self)
-            pintor.setPen(QColor(tema.paleta()["texto_sec"]))
-            pintor.setFont(fuente(tema.FAMILIAS_MONO, 10))
-            caja = self.rect().adjusted(0, 0, -16, 0)
-            derecha = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
-            pintor.drawText(caja, derecha, self.unidad)
-
-
-class CampoNumerico(QWidget):
-    """Etiqueta, caja de texto y, debajo, el mensaje de error (si hay).
+class CampoLinea(QWidget):
+    """Etiqueta, número grande y una línea debajo que se ilumina con el foco.
 
     `validar` es una función de viviani.validacion: recibe el texto y
     devuelve (valor, mensaje).
@@ -407,41 +221,39 @@ class CampoNumerico(QWidget):
 
     def __init__(self, colores, titulo, validar, valor_inicial, marcador, unidad=""):
         super().__init__()
+        self.colores = colores
+        self.unidad = unidad
         self._validar = validar
-        self.caja = CajaConUnidad(unidad)
-        self.caja.setText(valor_inicial)
+        self._foco = 0.0  # 0 = línea apagada, 1 = encendida
+
+        self.caja = QLineEdit(valor_inicial)
+        self.caja.setObjectName("linea")
         self.caja.setPlaceholderText(marcador)
         self.caja.setAccessibleName(titulo)
-        self.caja.setFont(fuente(tema.FAMILIAS_NUMEROS, 15))
-        self.caja.setMinimumHeight(48)
-
-        # Brillo azul alrededor de la caja cuando tiene el foco
-        self._halo = QGraphicsDropShadowEffect(self.caja)
-        self._halo.setOffset(0, 0)
-        self._halo.setColor(con_alfa(colores["brillo"], 0.0))
-        self._halo.setBlurRadius(24)
-        self.caja.setGraphicsEffect(self._halo)
-        self._animacion = QVariantAnimation(self)
-        self._animacion.setDuration(DURACION_BRILLO_MS)
-        self._animacion.valueChanged.connect(
-            lambda v: self._halo.setColor(con_alfa(colores["brillo"], float(v)))
-        )
+        self.caja.setFont(fuente(tema.FAMILIAS_NUMEROS, 26))
+        if unidad:
+            self.caja.setTextMargins(0, 0, 44, 0)
         self.caja.installEventFilter(self)
 
         self.mensaje = QLabel("")
         self.mensaje.setProperty("rol", "error")
         self.mensaje.setWordWrap(True)
-        self.mensaje.setMinimumHeight(18)  # reserva el lugar: el diseño no salta
+        self.mensaje.setMinimumHeight(20)  # reserva el lugar: nada salta
 
         diseno = QVBoxLayout(self)
         diseno.setContentsMargins(0, 0, 0, 0)
-        diseno.setSpacing(6)
+        diseno.setSpacing(4)
         diseno.addWidget(etiqueta_pequena(titulo))
         diseno.addWidget(self.caja)
+        diseno.addSpacing(8)  # lugar para la línea
         diseno.addWidget(self.mensaje)
 
+        self._animacion = QVariantAnimation(self)
+        self._animacion.setDuration(DURACION_FOCO_MS)
+        self._animacion.valueChanged.connect(self._al_animar)
         self.caja.textEdited.connect(self._al_editar)
 
+    # --- validación ------------------------------------------------------
     def validar_y_mostrar(self):
         """Valida, muestra el mensaje si hay error y devuelve el valor (o None)."""
         valor, mensaje = self._validar(self.caja.text())
@@ -450,9 +262,7 @@ class CampoNumerico(QWidget):
 
     def mostrar_error(self, mensaje):
         self.mensaje.setText(mensaje)
-        self.caja.setProperty("error", bool(mensaje))
-        self.caja.style().unpolish(self.caja)
-        self.caja.style().polish(self.caja)
+        self.update()
 
     def hay_error(self):
         return bool(self.mensaje.text())
@@ -462,14 +272,208 @@ class CampoNumerico(QWidget):
         if self.hay_error() and not self._validar(self.caja.text())[1]:
             self.mostrar_error("")
 
+    # --- foco y dibujo -----------------------------------------------------
     def eventFilter(self, objeto, evento):
-        if objeto is self.caja and evento.type() in (
-            evento.Type.FocusIn,
-            evento.Type.FocusOut,
-        ):
-            entra = evento.type() == evento.Type.FocusIn
+        tipos = (evento.Type.FocusIn, evento.Type.FocusOut)
+        if objeto is self.caja and evento.type() in tipos:
             self._animacion.stop()
-            self._animacion.setStartValue(self._halo.color().alphaF())
-            self._animacion.setEndValue(0.55 if entra else 0.0)
+            self._animacion.setStartValue(self._foco)
+            self._animacion.setEndValue(1.0 if evento.type() == tipos[0] else 0.0)
             self._animacion.start()
         return super().eventFilter(objeto, evento)
+
+    def _al_animar(self, valor):
+        self._foco = float(valor)
+        self.update()
+
+    def paintEvent(self, _evento):
+        c = self.colores
+        pintor = QPainter(self)
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+        caja = self.caja.geometry()
+        y = caja.bottom() + 5
+        ancho = self.width()
+
+        # Línea base, tenue
+        pintor.setPen(QPen(QColor(c["borde"]), 1))
+        pintor.drawLine(QPointF(0, y), QPointF(ancho, y))
+
+        if self.hay_error():
+            pintor.setPen(QPen(QColor(c["error"]), 2))
+            pintor.drawLine(QPointF(0, y), QPointF(ancho, y))
+        elif self._foco > 0:
+            # Línea encendida que crece desde el centro, con un brillo debajo
+            mitad = ancho * self._foco / 2
+            x0, x1 = ancho / 2 - mitad, ancho / 2 + mitad
+            for grosor, alfa in ((8, 0.10), (4, 0.22), (2, 1.0)):
+                pluma = QPen(degradado_cian_violeta(0, ancho, alfa), grosor)
+                pluma.setCapStyle(Qt.PenCapStyle.RoundCap)
+                pintor.setPen(pluma)
+                pintor.drawLine(QPointF(x0, y), QPointF(x1, y))
+
+        if self.unidad:
+            pintor.setPen(QColor(c["texto_sec"]))
+            pintor.setFont(fuente(tema.FAMILIAS_MONO, 11))
+            derecha = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            pintor.drawText(QRectF(caja), derecha, self.unidad)
+
+
+# ---------------------------------------------------------------------------
+# Botón orbe
+# ---------------------------------------------------------------------------
+class BotonOrbe(QPushButton):
+    """Botón circular con el símbolo ∫.
+
+    - Respira: su halo sube y baja lentamente (periodo de 3,2 s).
+    - Brilla más cuanto más cerca está el cursor (la ventana llama a
+      `acercar`).
+    - Al pulsarlo lanza una onda que se expande y se desvanece.
+    - Durante un cálculo largo dibuja el progreso como un arco.
+    """
+
+    DIAMETRO = 124
+    MARGEN = 34  # espacio para el halo y la onda
+    PERIODO_S = 3.2
+    DURACION_ONDA_MS = 650
+
+    def __init__(self, colores, reducir_movimiento=False):
+        super().__init__("Calcular")
+        self.colores = colores
+        self._quieto = reducir_movimiento
+        self._cerca = 0.0
+        self._progreso = None
+        lado = self.DIAMETRO + 2 * self.MARGEN
+        self.setFixedSize(lado, lado)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAccessibleName("Calcular el perímetro")
+
+        self._reloj = QElapsedTimer()
+        self._reloj.start()
+        self._onda = QElapsedTimer()
+        self.clicked.connect(self._lanzar_onda)
+        # Repinta ~30 veces por segundo (solo este botón, que es pequeño)
+        self._latido = QTimer(self)
+        self._latido.setInterval(33)
+        self._latido.timeout.connect(self.update)
+        if not self._quieto:
+            self._latido.start()
+
+    # --- lo que llama la ventana -----------------------------------------
+    def acercar(self, cursor_global):
+        """Calcula el brillo según la distancia del cursor al orbe."""
+        if not self.isVisible():
+            return
+        centro = self.mapToGlobal(self.rect().center())
+        distancia = math.hypot(
+            cursor_global.x() - centro.x(), cursor_global.y() - centro.y()
+        )
+        distancia = max(0.0, distancia - self.DIAMETRO / 2)
+        self._cerca = max(0.0, 1 - distancia / DISTANCIA_BRILLO) ** 1.5
+        if self._quieto:
+            self.update()
+
+    def establecer_progreso(self, fraccion):
+        """fraccion entre 0 y 1, o None para ocultar el arco."""
+        self._progreso = fraccion
+        self.update()
+
+    def _lanzar_onda(self):
+        if not self._quieto:
+            self._onda.start()
+
+    # --- dibujo --------------------------------------------------------
+    def paintEvent(self, _evento):
+        c = self.colores
+        pintor = QPainter(self)
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+        centro = QPointF(self.width() / 2, self.height() / 2)
+        radio = self.DIAMETRO / 2 * (0.96 if self.isDown() else 1.0)
+        segundos = self._reloj.elapsed() / 1000
+        respiracion = 0.5 + 0.5 * math.sin(2 * math.pi * segundos / self.PERIODO_S)
+        if self._quieto:
+            respiracion = 0.5
+
+        self._pintar_halo(pintor, centro, radio, respiracion)
+        self._pintar_onda(pintor, centro, radio)
+        self._pintar_cuerpo(pintor, centro, radio, segundos)
+        self._pintar_progreso(pintor, centro, radio)
+        self._pintar_textos(pintor, centro, radio)
+
+        if self.hasFocus():  # anillo punteado para quien usa el teclado
+            pluma = QPen(con_alfa(c["acento"], 0.8), 1.5, Qt.PenStyle.DashLine)
+            pintor.setPen(pluma)
+            pintor.setBrush(Qt.BrushStyle.NoBrush)
+            pintor.drawEllipse(centro, radio + 14, radio + 14)
+
+    def _pintar_halo(self, pintor, centro, radio, respiracion):
+        c = self.colores
+        fuerza = 0.18 + 0.18 * respiracion + 0.55 * self._cerca
+        exterior = radio + self.MARGEN
+        halo = QRadialGradient(centro, exterior)
+        borde = radio / exterior
+        halo.setColorAt(0, con_alfa(c["acento"], 0.0))
+        halo.setColorAt(borde * 0.9, con_alfa(c["acento"], 0.45 * fuerza))
+        halo.setColorAt(
+            borde + (1 - borde) * 0.35, con_alfa(c["violeta"], 0.20 * fuerza)
+        )
+        halo.setColorAt(1, con_alfa(c["violeta"], 0.0))
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(halo)
+        pintor.drawEllipse(centro, exterior, exterior)
+
+    def _pintar_onda(self, pintor, centro, radio):
+        if not self._onda.isValid():
+            return
+        avance = self._onda.elapsed() / self.DURACION_ONDA_MS
+        if avance >= 1:
+            self._onda.invalidate()
+            return
+        suave = 1 - (1 - avance) ** 3
+        pintor.setBrush(Qt.BrushStyle.NoBrush)
+        pintor.setPen(QPen(con_alfa(self.colores["acento"], 0.7 * (1 - avance)), 2))
+        alcance = radio + suave * (self.MARGEN - 2)
+        pintor.drawEllipse(centro, alcance, alcance)
+
+    def _pintar_cuerpo(self, pintor, centro, radio, segundos):
+        c = self.colores
+        # Esfera de vidrio oscuro con luz arriba a la izquierda
+        luz = centro + QPointF(-0.35 * radio, -0.45 * radio)
+        cuerpo = QRadialGradient(luz, 1.6 * radio)
+        cuerpo.setColorAt(0, mezclar("#2A5490", c["acento"], 0.15 * self._cerca))
+        cuerpo.setColorAt(0.55, QColor("#132544"))
+        cuerpo.setColorAt(1, QColor("#0A1222"))
+        # Borde que gira despacio: cian, violeta y de nuevo cian
+        borde = QConicalGradient(centro, -40 * segundos)
+        borde.setColorAt(0.0, con_alfa(c["acento"], 0.95))
+        borde.setColorAt(0.5, con_alfa(c["violeta"], 0.95))
+        borde.setColorAt(1.0, con_alfa(c["acento"], 0.95))
+        pintor.setPen(QPen(borde, 2))
+        pintor.setBrush(cuerpo)
+        pintor.drawEllipse(centro, radio, radio)
+
+    def _pintar_progreso(self, pintor, centro, radio):
+        if self._progreso is None:
+            return
+        caja = QRectF(centro.x() - radio - 8, centro.y() - radio - 8,
+                      2 * radio + 16, 2 * radio + 16)  # fmt: skip
+        pintor.setBrush(Qt.BrushStyle.NoBrush)
+        pintor.setPen(QPen(con_alfa(self.colores["borde"], 0.9), 3))
+        pintor.drawEllipse(caja)
+        pluma = QPen(QColor(self.colores["acento"]), 3)
+        pluma.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pintor.setPen(pluma)
+        # Qt mide los ángulos en 1/16 de grado; negativo = sentido horario
+        pintor.drawArc(caja, 90 * 16, round(-360 * 16 * self._progreso))
+
+    def _pintar_textos(self, pintor, centro, radio):
+        c = self.colores
+        simbolo = QRectF(centro.x() - radio, centro.y() - 0.78 * radio,
+                         2 * radio, 1.15 * radio)  # fmt: skip
+        pintor.setPen(mezclar(c["texto"], c["acento_hover"], self._cerca))
+        pintor.setFont(fuente(tema.FAMILIAS_TITULO, radio * 0.42))
+        pintor.drawText(simbolo, Qt.AlignmentFlag.AlignCenter, "∫")
+        rotulo = QRectF(centro.x() - radio, centro.y() + 0.30 * radio,
+                        2 * radio, 0.35 * radio)  # fmt: skip
+        pintor.setPen(mezclar(c["etiqueta"], c["acento"], self._cerca))
+        pintor.setFont(fuente(tema.FAMILIAS_MONO, 8.5, espaciado=2.5))
+        pintor.drawText(rotulo, Qt.AlignmentFlag.AlignCenter, "CALCULAR")

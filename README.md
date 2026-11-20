@@ -6,8 +6,8 @@ mediante una suma de Riemann de la función subintegral de la longitud de arco.
 
 Hay dos versiones que hacen el mismo cálculo:
 
-- **Aplicación de escritorio** (`viviani_app.py` o el `.exe`): con la curva en 3D
-  girando, los rectángulos de la suma animados y efectos de sonido.
+- **Aplicación de escritorio** (`viviani_app.py` o el `.exe`): tema oscuro, con la
+  curva en 3D girando, los rectángulos de la suma animados y efectos de sonido.
 - **Versión de consola** (`perimetro_viviani.py`): el núcleo matemático, sin
   librerías externas.
 
@@ -101,15 +101,32 @@ Primero ejecuta las pruebas; si pasan, construye con PyInstaller según
 
 Medido en un portátil con Windows 11 (2026-11-19):
 
-| Modo | Resultado | Tamaño | Construcción | Arranque |
+| Modo | Resultado | Tamaño | Pantalla de carga | Ventana lista |
 |---|---|---|---|---|
-| Carpeta (`onedir`) | `dist\PerimetroViviani\` | 104.8 MB (45.5 MB en zip) | 67 s | 2.6 s |
-| Archivo único (`onefile`) | `dist\PerimetroViviani.exe` | 45.4 MB | 70 s | 3.6 s |
+| Carpeta (`onedir`) | `dist\PerimetroViviani\` | 104.9 MB (45.7 MB en zip) | 0.5 s | 2.3 s |
+| Archivo único (`onefile`) | `dist\PerimetroViviani.exe` | 45.5 MB | 1.9 s | 3.8 s |
+
+El archivo único tarda más en mostrar algo porque primero se descomprime en
+una carpeta temporal (eso ocurre antes de que el programa pueda dibujar).
+
+El icono del `.exe` sale de `src/viviani/recursos/icono.ico`; si se cambia el
+logo (`src/viviani/ui/logo.py`), se regenera con
+`.venv\Scripts\python.exe scripts\generar_icono.py`.
 
 Para grabar el video conviene el modo carpeta (abre más rápido). Para entregar
 o enviar, el archivo único es más cómodo; el zip del modo carpeta suele dar
 menos avisos del antivirus, porque el archivo único se descomprime en una
 carpeta temporal cada vez que se abre.
+
+## Versiones
+
+| Versión | Dónde está | Aspecto |
+|---|---|---|
+| 1.0 | etiqueta `v1.0` (rama `feature/interfaz-grafica`) | Tema claro con tarjetas |
+| 2.0 | rama `version-2` | Tema oscuro sin recuadros, botón orbe, pantalla de carga e icono |
+
+Para volver a la versión 1: `git checkout v1.0` (y `git checkout version-2`
+para regresar).
 
 ## Estructura
 
@@ -120,7 +137,7 @@ carpeta temporal cada vez que se abre.
 | `viviani_app.py` | Lanzador de la aplicación de escritorio |
 | `src/viviani/` | Código de la aplicación (cálculo, gráficas, sonido, interfaz) |
 | `tests/` | Pruebas de la aplicación |
-| `scripts/` | `ejecutar.ps1` y `construir.ps1` |
+| `scripts/` | `ejecutar.ps1`, `construir.ps1` y `generar_icono.py` |
 | `docs/EXPLICACION.md` | Cómo está organizado el código, en lenguaje sencillo |
 | `docs/decisiones.md` | Por qué se eligió PySide6 + matplotlib |
 | `viviani.spec` | Receta de PyInstaller |

@@ -231,7 +231,7 @@ class GraficaCurva3D(QWidget):
             pintor.fillRect(QRectF(0, 0, ancho, alto), QColor(colores["superficie"]))
 
         lado = min(ancho, alto)
-        escala = 0.36 * lado  # radio de la esfera en píxeles
+        escala = 0.40 * lado  # radio de la esfera en píxeles
         centro = QPointF(ancho / 2, alto / 2 + 0.03 * lado)
         grosor = lado / 600  # los grosores crecen con el tamaño (exportación)
 
@@ -295,9 +295,16 @@ class GraficaCurva3D(QWidget):
     def _trazar_con_brillo(pintor, camino, colores, grosor, ancho):
         """La curva se dibuja tres veces: halo ancho, halo medio y núcleo fino.
 
-        El color pasa de azul a turquesa de izquierda a derecha.
+        El color pasa de cian a violeta de izquierda a derecha.
         """
-        for ancho_pluma, alfa in ((14, 0.10), (7, 0.22), (2.8, 1.0)):
+        # Sobre fondo oscuro los halos se SUMAN a lo que hay debajo (modo
+        # "Plus"): así brillan como un neón en vez de tapar.
+        oscuro = colores["fondo"] != "#FFFFFF"
+        for ancho_pluma, alfa in ((18, 0.13), (8, 0.30), (3.2, 1.0)):
+            modo = QPainter.CompositionMode
+            suma = oscuro and alfa < 1
+            pintor.setCompositionMode(modo.CompositionMode_Plus if suma
+                                      else modo.CompositionMode_SourceOver)  # fmt: skip
             degradado = QLinearGradient(0, 0, ancho, 0)
             for posicion, nombre in ((0.0, "serie_azul"), (1.0, "serie_turquesa")):
                 tono = QColor(colores[nombre])
@@ -308,14 +315,20 @@ class GraficaCurva3D(QWidget):
             pluma.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             pintor.setPen(pluma)
             pintor.drawPath(camino)
+        pintor.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
     @staticmethod
     def _pintar_esfera(pintor, centro, escala, colores, grosor):
         luz = QPointF(centro.x() - 0.35 * escala, centro.y() - 0.4 * escala)
         degradado = QRadialGradient(luz, 1.4 * escala)
-        claro, sombra = QColor("#FFFFFF"), QColor(colores["esfera"])
-        claro.setAlphaF(0.55)
-        sombra.setAlphaF(0.22)
+        if colores["fondo"] == "#FFFFFF":  # imagen exportada: vidrio claro
+            claro, sombra = QColor("#FFFFFF"), QColor(colores["esfera"])
+            claro.setAlphaF(0.55)
+            sombra.setAlphaF(0.22)
+        else:  # pantalla oscura: vidrio con un leve reflejo cian
+            claro, sombra = QColor(colores["acento"]), QColor(colores["esfera"])
+            claro.setAlphaF(0.13)
+            sombra.setAlphaF(0.04)
         degradado.setColorAt(0, claro)
         degradado.setColorAt(1, sombra)
         borde = QColor(colores["esfera"])

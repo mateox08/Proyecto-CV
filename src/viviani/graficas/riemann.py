@@ -241,19 +241,17 @@ class GraficaRiemann(LienzoBase):
                 )
             )
             rotulos.append("Puntos de muestra")
-        # Debajo del gráfico: arriba taparía la curva, que llega casi al borde.
+        # A la derecha del gráfico, en columna: la gráfica es ancha y baja,
+        # así que le quita poco espacio (y no tapa la curva).
         leyenda = eje.legend(
             elementos,
             rotulos,
-            # Centrada bajo el EJE (no bajo la figura entera, que incluye el
-            # rótulo vertical y la correría a la derecha). El espacio de
-            # separación está en "alturas de letra": deja sitio a "t (rad)".
-            loc="upper center",
-            bbox_to_anchor=(0.5, 0),
-            borderaxespad=3.4,
-            ncols=len(elementos),
+            loc="center left",
+            bbox_to_anchor=(1.02, 0.5),
+            borderaxespad=0,
+            ncols=1,
             frameon=False,
-            columnspacing=1.2,
             handlelength=1.4,
+            labelspacing=0.9,
         )
         poner_leyenda(leyenda, colores)

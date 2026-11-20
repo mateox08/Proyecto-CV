@@ -29,6 +29,8 @@ if MODO not in ("onedir", "onefile"):
     raise SystemExit(f"VIVIANI_MODO debe ser 'onedir' o 'onefile', no '{MODO}'.")
 
 NOMBRE = "PerimetroViviani"
+# Icono del .exe (se genera con scripts/generar_icono.py)
+ICONO = str(RAIZ / "src" / "viviani" / "recursos" / "icono.ico")
 
 # --- Qué NO se incluye -----------------------------------------------------
 EXCLUIR = [
@@ -137,6 +139,7 @@ if MODO == "onefile":
     exe = EXE(  # noqa: F821
         pyz, a.scripts, a.binaries, a.datas, [],
         name=NOMBRE,
+        icon=ICONO,
         console=False,       # ventana normal, sin consola negra
         upx=False,           # sin UPX (más rápido y menos falsos positivos)
         debug=False,
@@ -147,6 +150,7 @@ else:
         pyz, a.scripts, [],
         exclude_binaries=True,
         name=NOMBRE,
+        icon=ICONO,
         console=False,
         upx=False,
         debug=False,

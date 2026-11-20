@@ -1,56 +1,69 @@
 """Colores, fuentes y medidas de la interfaz.
 
-La aplicación tiene un solo tema, claro, de tonos blanco azulado con brillos
-suaves. Cada color tiene un nombre ("token") para no repetir códigos
-hexadecimales por todo el programa: si se quiere cambiar un color, se cambia
-solo aquí.
+La aplicación tiene un solo tema, oscuro, tipo "observatorio": fondo azul
+noche con una rejilla de puntos, luces suaves y acentos cian y violeta. Cada
+color tiene un nombre ("token") para no repetir códigos hexadecimales por
+todo el programa: si se quiere cambiar un color, se cambia solo aquí.
 """
 
 _COLORES = {
-    # Fondo de la ventana: degradado vertical con una rejilla muy tenue
-    "fondo":              "#EDF2FA",
-    "fondo_2":            "#F8FAFE",
-    "rejilla":            "#D3DDEC",
-    # Tarjetas tipo "vidrio"
-    "superficie":         "#FBFCFE",
-    # Fondo de las gráficas en pantalla: transparente (se ve la tarjeta y,
-    # a través de ella, la luz del cursor). Formato #RRGGBBAA.
-    "fondo_grafica":      "#FFFFFF00",
-    "borde":              "#D9E2EF",
-    "borde_brillo":       "#8DBBF0",
-    "separador":          "#E3E9F2",
+    # Fondo de la ventana: degradado vertical con una rejilla de puntos
+    "fondo":              "#070B14",
+    "fondo_2":            "#0D1424",
+    "rejilla":            "#2A3550",
+    # Superficies (cajas de texto, aviso de error)
+    "superficie":         "#111A2E",
+    # Fondo de las gráficas en pantalla: transparente. Formato #RRGGBBAA.
+    "fondo_grafica":      "#00000000",
+    "borde":              "#26324A",
+    "borde_brillo":       "#5FD4FF",
+    "separador":          "#1C2740",
     # Texto
-    "texto":              "#1B2232",
-    "texto_sec":          "#55617A",
-    "etiqueta":           "#5C6880",
+    "texto":              "#E8EEF9",
+    "texto_sec":          "#9AA8C2",
+    "etiqueta":           "#8494B2",
     # Acento (botón principal, foco, brillo)
-    "acento":             "#2F76CC",
-    "acento_hover":       "#245FA8",
-    "acento_suave":       "#DDEBFB",
-    "brillo":             "#6FA9EE",
-    "texto_sobre_acento": "#FFFFFF",
+    "acento":             "#4CC9F0",
+    "acento_hover":       "#7FDBFF",
+    "acento_suave":       "#16314A",
+    "brillo":             "#4CC9F0",
+    "violeta":            "#9D7BFF",
+    "texto_sobre_acento": "#06101C",
     # Estados
-    "error":              "#B83A27",
-    "fondo_error":        "#FCEDEA",
+    "error":              "#FF7A6B",
+    "fondo_error":        "#2A1418",
     # Series de las gráficas
-    "serie_azul":         "#2F76CC",
-    "serie_naranja":      "#D9672B",
-    "serie_turquesa":     "#1E9C8A",
-    "punto_doble":        "#E0533D",
-    "esfera":             "#8EA3C2",
+    "serie_azul":         "#4CC9F0",
+    "serie_naranja":      "#FFB454",
+    "serie_turquesa":     "#9D7BFF",  # la curva 3D va de cian a violeta
+    "punto_doble":        "#FF6B8B",
+    "esfera":             "#7C93C4",
 }
 
-# Espaciado (en píxeles lógicos) y radios de las esquinas.
-ESPACIO = {1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32}
-RADIO_CONTROL = 12
-RADIO_TARJETA = 22
+# Colores para las imágenes PNG del reporte: fondo blanco y tonos oscuros,
+# porque se van a imprimir.
+_COLORES_EXPORTACION = {
+    "superficie":         "#FFFFFF",
+    "fondo":              "#FFFFFF",
+    "fondo_grafica":      "#FFFFFF",
+    "texto":              "#000000",
+    "texto_sec":          "#000000",
+    "etiqueta":           "#333333",
+    "borde":              "#7A8494",
+    "separador":          "#D5DAE1",
+    "serie_azul":         "#1F5FBF",
+    "serie_naranja":      "#C24E00",
+    "serie_turquesa":     "#6A3FD0",
+    "punto_doble":        "#C2183F",
+    "esfera":             "#7A8494",
+}
 
 # Tipografía: todas vienen con Windows, no hay que instalar nada.
-#   - serif para títulos y números grandes (aire "de libro de matemáticas")
+#   - serif para títulos (aire "de libro de matemáticas")
+#   - Cambria para cifras (todos los dígitos del mismo alto)
 #   - sans para el texto normal
 #   - monoespaciada para las etiquetas pequeñas en mayúsculas
 FAMILIAS_TITULO = ["Georgia", "Cambria", "Times New Roman"]
-# Para cifras: Cambria dibuja todos los dígitos del mismo alto (Georgia no)
 FAMILIAS_NUMEROS = ["Cambria", "Georgia", "Times New Roman"]
 FAMILIAS_INTERFAZ = ["Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI"]
 FAMILIAS_MONO = ["Cascadia Mono", "Consolas", "Courier New"]
@@ -63,13 +76,9 @@ def paleta():
 
 
 def paleta_exportacion():
-    """Paleta para las imágenes PNG del reporte: fondo blanco y texto negro."""
+    """Paleta para las imágenes PNG del reporte (fondo blanco)."""
     colores = paleta()
-    colores["superficie"] = "#FFFFFF"
-    colores["fondo_grafica"] = "#FFFFFF"
-    colores["fondo"] = "#FFFFFF"
-    colores["texto"] = "#000000"
-    colores["texto_sec"] = "#000000"
+    colores.update(_COLORES_EXPORTACION)
     return colores
 
 
