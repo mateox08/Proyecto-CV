@@ -5,18 +5,14 @@ import math
 import numpy as np
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import to_rgba
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 
 from viviani.formato import (
     formatear_decimal,
-    formatear_entero,
     formatear_radio,
 )
 from viviani.graficas.animacion import salida_suave
 from viviani.graficas.estilo import (
     FORMATO_MARCAS,
-    poner_leyenda,
     preparar_ejes_2d,
 )
 from viviani.graficas.lienzo import LienzoBase
@@ -62,7 +58,6 @@ class GraficaRiemann(LienzoBase):
         super().__init__(colores, escala_texto)
         self.radio = 5.0
         self.resultado = None  # None: todavía no se ha calculado
-        self.decorada = False  # título y leyenda dentro de la figura
         self._elementos = {}
         self.redibujar()
 
@@ -117,19 +112,6 @@ class GraficaRiemann(LienzoBase):
             puntos.set_alpha(opacidad)
 
     # --- Textos ---------------------------------------------------------
-    def titulo(self):
-        r = self.resultado
-        if r is None:
-            return f"f(t) = R√(1 + cos²t) con R = {formatear_radio(self.radio)} cm"
-        return f"Suma de Riemann con n = {formatear_entero(r.n)}"
-
-    def nombre_sugerido(self):
-        radio = formatear_radio(self.radio).replace(".", "-")
-        if self.resultado is None:
-            return f"riemann_R{radio}cm_funcion.png"
-        r = self.resultado
-        return f"riemann_R{radio}cm_n{r.n}_{r.metodo}.png"
-
     def descripcion_accesible(self):
         r = self.resultado
         if r is None:
@@ -142,23 +124,13 @@ class GraficaRiemann(LienzoBase):
             f"Suma igual a {formatear_decimal(r.perimetro)} centímetros."
         )
 
-    # --- Dibujo (pantalla y exportación) -----------------------------------
+    # --- Dibujo -------------------------------------------------------------
     def _dibujar(self, fig, colores, estilo):
         radio, r = self.radio, self.resultado
         eje = fig.add_subplot()
         preparar_ejes_2d(eje, colores, estilo)
         fig.set_facecolor(colores["fondo_grafica"])
-        # En pantalla el título y la leyenda los pone la ventana (con letra
-        # de la interfaz); en el PNG exportado van dentro de la imagen.
-        if self.decorada:
-            separacion = 2.2 * estilo.leyenda if self.resultado is not None else 6
-            eje.set_title(
-                self.titulo(),
-                fontsize=estilo.titulo,
-                fontweight="semibold",
-                color=colores["texto"],
-                pad=separacion,
-            )
+        # El título y la leyenda los pone la ventana, con letra de la interfaz
 
         t = np.linspace(0, 2 * math.pi, 400)
         eje.plot(
@@ -190,9 +162,6 @@ class GraficaRiemann(LienzoBase):
                 color=colores["serie_naranja"],
                 linewidths=0,
             )
-        if self.decorada:
-            self._poner_anotacion(eje, colores, estilo)
-            self._poner_leyenda(eje, colores, estilo, con_puntos=puntos is not None)
         return {"rectangulos": rectangulos, "puntos": puntos}
 
     def _dar_formato_ejes(self, eje, radio, estilo):
@@ -205,56 +174,3 @@ class GraficaRiemann(LienzoBase):
         eje.yaxis.set_major_formatter(FORMATO_MARCAS)
         eje.set_xlabel("t", fontsize=estilo.rotulo)
         eje.set_ylabel("f(t)", fontsize=estilo.rotulo)
-
-    def _poner_anotacion(self, eje, colores, estilo):
-        texto = f"Σ f(tᵢ)·Δt = {formatear_decimal(self.resultado.perimetro)} cm"
-        if self.resultado.agrupado:
-            # Con n > 120 cada barra agrupa varios subintervalos (ver calculo.py)
-            barras = len(self.resultado.barras_altura)
-            texto += f"  ·  {barras} barras agrupadas"
-        # Subtítulo, debajo del título: así no tapa los rectángulos
-        eje.annotate(
-            texto,
-            xy=(0.5, 1),
-            xycoords="axes fraction",
-            xytext=(0, 4),
-            textcoords="offset points",
-            ha="center",
-            va="bottom",
-            fontsize=estilo.leyenda,
-            color=colores["texto_sec"],
-        )
-
-    def _poner_leyenda(self, eje, colores, estilo, con_puntos):
-        azul = colores["serie_azul"]
-        elementos = [
-            Line2D([], [], color=colores["texto"], linewidth=2 * estilo.lineas),
-            Patch(facecolor=to_rgba(azul, ALFA_RELLENO), edgecolor=azul),
-        ]
-        rotulos = ["f(t)", "Rectángulos"]
-        if con_puntos:
-            elementos.append(
-                Line2D(
-                    [],
-                    [],
-                    linestyle="",
-                    marker="o",
-                    markersize=5 * estilo.marcadores,
-                    color=colores["serie_naranja"],
-                )
-            )
-            rotulos.append("Puntos de muestra")
-        # Debajo del gráfico, centrada bajo el EJE. La separación está en
-        # "alturas de letra": deja sitio al rótulo "t (rad)".
-        leyenda = eje.legend(
-            elementos,
-            rotulos,
-            loc="upper center",
-            bbox_to_anchor=(0.5, 0),
-            borderaxespad=3.4,
-            ncols=len(elementos),
-            frameon=False,
-            columnspacing=1.2,
-            handlelength=1.4,
-        )
-        poner_leyenda(leyenda, colores)

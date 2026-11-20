@@ -119,7 +119,7 @@ resultados se muestran siempre con punto decimal.
 ### 5.5 `tema.py`
 
 Una tabla con cada color (un solo tema oscuro tipo grafito con acento verde
-menta; y otra tabla clara para los PNG del reporte), las fuentes y la función
+menta), las fuentes y la función
 `razon_de_contraste`, que aplica la fórmula de accesibilidad WCAG. Una prueba
 automática comprueba que todo texto tenga contraste suficiente (4,5 a 1).
 
@@ -139,10 +139,8 @@ un hilo propio para no detener la ventana.
 | `riemann.py` | f(t) y los rectángulos, que aparecen de izquierda a derecha. |
 | `lienzo.py` | Base de la gráfica de Riemann: dibujo y animación. |
 | `animacion.py` | El reloj de la animación. |
-| `estilo.py` | Tamaños de letra y grosores para pantalla y para exportar. |
+| `estilo.py` | Tamaños de letra, grosores y colores de matplotlib. |
 
-Cada gráfica tiene **una sola función de dibujo** que sirve tanto para la
-pantalla como para el PNG del reporte (300 ppp, fondo blanco).
 
 La animación no cuenta cuadros: en cada cuadro mira **cuánto tiempo real ha
 pasado** y dibuja lo que corresponde a ese instante. Por eso dura lo mismo
@@ -158,7 +156,6 @@ pasado** y dibuja lo que corresponde a ese instante. Por eso dura lo mismo
 | `estilos.py` | Convierte la paleta de `tema.py` en la hoja de estilos de Qt. |
 | `trabajador.py` | El hilo de cálculo y su cancelación. |
 | `sistema.py` | Pregunta a Windows si hay que reducir animaciones o agrandar el texto. |
-| `iconos.py` | Carga los iconos (Lucide, licencia libre). |
 | `logo.py` | Dibuja el logo (la curva vista de frente, un "8"). Lo usan la pantalla de carga, el encabezado y el icono del `.exe`. |
 | `carga.py` | La pantalla de carga que aparece mientras se preparan numpy y matplotlib. |
 | `creditos.py` | El panel de créditos con efecto de vidrio: toma una foto de la ventana, la desenfoca y la muestra a través de la tarjeta. Los nombres están en las listas al inicio del archivo. |
@@ -219,4 +216,4 @@ python -m unittest -v
 Las pruebas revisan, entre otras cosas: que L/R sea 7,640395578; que
 `calculo.py` y `suma_de_riemann` coincidan; cada mensaje de validación; el
 formato de los números; el contraste de los colores; que la animación dure
-menos de 2 s; y que la ventana calcule, cancele y exporte sin errores.
+menos de 2 s; y que la curva 3D y la gráfica de Riemann se dibujen sin errores.

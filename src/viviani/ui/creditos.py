@@ -2,15 +2,29 @@
 
 Efecto "vidrio líquido": la tarjeta deja ver lo que hay detrás, pero
 desenfocado, con un borde luminoso y un reflejo en la parte de arriba.
-El desenfoque se consigue de forma muy simple: se toma una foto de la
-ventana, se achica mucho (pierde detalle) y se vuelve a agrandar suavizada.
+El desenfoque se consigue de forma muy simple: se dibuja en una imagen lo
+que hay detrás de la tarjeta (el fondo y la esfera), se achica mucho (pierde
+detalle) y se vuelve a agrandar suavizada.
+
+Esa imagen se rehace ~20 veces por segundo mientras el panel está abierto,
+así a través del vidrio se ve la curva girando. Es barato: solo se dibuja el
+pedazo que queda detrás de la tarjeta, no toda la ventana.
 
 Se cierra con Esc, con el botón "Cerrar" o haciendo clic fuera de la
 tarjeta. Aparece y desaparece con un fundido corto.
 """
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QVariantAnimation
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer, QVariantAnimation
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRegion,
+)
 from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QLabel,
@@ -36,6 +50,8 @@ DURACION_FUNDIDO_MS = 220
 ANCHO_TARJETA, ALTO_TARJETA = 400, 440
 RADIO = 28
 REDUCCION_DESENFOQUE = 18  # cuánto se achica la foto: más = más borroso
+INTERVALO_VIVO_MS = 50  # cada cuánto se rehace el fondo del vidrio (20 por s)
+ESCALA_FOTO = 6  # el recorte se dibuja a 1/6 de su tamaño
 
 
 class _Logo(QWidget):
@@ -58,11 +74,16 @@ def _nombre(texto, puntos=13):
 class PanelCreditos(QWidget):
     """Capa sobre toda la ventana con una tarjeta de vidrio en el centro."""
 
-    def __init__(self, padre):
+    def __init__(self, padre, escena):
+        """padre: el fondo de la ventana; escena: la gráfica 3D (detrás)."""
         super().__init__(padre)
         self.colores = tema.paleta()
-        self._borroso = None  # foto desenfocada de la ventana
+        self._escena = escena
+        self._borroso = None  # lo que hay detrás de la tarjeta, desenfocado
         self.hide()
+        self._vivo = QTimer(self)
+        self._vivo.setInterval(INTERVALO_VIVO_MS)
+        self._vivo.timeout.connect(self._refrescar_vidrio)
 
         self.tarjeta = QWidget(self)
         self.tarjeta.setFixedSize(ANCHO_TARJETA, ALTO_TARJETA)
@@ -93,8 +114,10 @@ class PanelCreditos(QWidget):
         self.boton_cerrar.clicked.connect(self.cerrar)
         diseno.addWidget(self.boton_cerrar, 0, centrado)
 
-        # Fundido: un efecto de opacidad sobre todo el panel
+        # Fundido: un efecto de opacidad sobre todo el panel. Solo se activa
+        # mientras dura el fundido (con él activo, cada repintado costaría más).
         self._opacidad = QGraphicsOpacityEffect(self)
+        self._opacidad.setEnabled(False)
         self.setGraphicsEffect(self._opacidad)
         self._fundido = QVariantAnimation(self)
         self._fundido.setDuration(DURACION_FUNDIDO_MS)
@@ -105,39 +128,66 @@ class PanelCreditos(QWidget):
 
     # --- abrir y cerrar ---------------------------------------------------
     def abrir(self):
-        padre = self.parentWidget()
-        self._borroso = self._desenfocar(padre.grab())
-        self.setGeometry(padre.rect())
+        self.setGeometry(self.parentWidget().rect())
         self._centrar_tarjeta()
+        self._borroso = self._fotografiar_detras()
         self.show()
         self.raise_()
         self._fundir(0.0, 1.0)
+        self._vivo.start()
         self.boton_cerrar.setFocus()
 
     def cerrar(self):
         if self.isVisible():
             self._fundir(1.0, 0.0)
 
-    @staticmethod
-    def _desenfocar(foto):
-        """Achica la foto y la vuelve a agrandar suavizada: queda borrosa.
+    def _refrescar_vidrio(self):
+        self._borroso = self._fotografiar_detras()
+        self.update(self.tarjeta.geometry())
 
-        Se hace en dos pasadas (una fuerte y otra suave) para que no se
-        noten "cuadritos".
+    def _fotografiar_detras(self):
+        """Dibuja en una imagen el fondo y la esfera que quedan detrás de la
+        tarjeta, y la devuelve desenfocada."""
+        caja = self.tarjeta.geometry()
+        # Se dibuja directamente en pequeño (1/6 del tamaño): de todas formas
+        # se va a desenfocar, y así cuesta muchísimo menos.
+        foto = QPixmap(
+            caja.width() // ESCALA_FOTO + 1, caja.height() // ESCALA_FOTO + 1
+        )
+        foto.fill(QColor(self.colores["fondo"]))
+        pintor = QPainter(foto)
+        pintor.scale(1 / ESCALA_FOTO, 1 / ESCALA_FOTO)
+        fondo = getattr(self.parentWidget(), "_imagen", None)
+        if fondo is not None:
+            pintor.drawPixmap(QRect(QPoint(0, 0), caja.size()), fondo, caja)
+        # La gráfica 3D ocupa todo el fondo: misma posición que la tarjeta
+        self._escena.render(pintor, QPoint(0, 0), QRegion(caja))
+        pintor.end()
+        return self._desenfocar(foto, caja.size())
+
+    def _desenfocar(self, foto, tamano):
+        """Achica más la foto y la agranda suavizada hasta `tamano`.
+
+        Se agranda en dos pasos para que no se noten "cuadritos".
         """
         suave = Qt.TransformationMode.SmoothTransformation
         libre = Qt.AspectRatioMode.IgnoreAspectRatio
-        for reduccion in (REDUCCION_DESENFOQUE, 4):
-            pequena = foto.scaled(
-                max(1, foto.width() // reduccion),
-                max(1, foto.height() // reduccion),
-                libre,
-                suave,
-            )
-            foto = pequena.scaled(foto.size(), libre, suave)
+        reduccion = REDUCCION_DESENFOQUE // ESCALA_FOTO
+        foto = foto.scaled(
+            max(1, foto.width() // reduccion), max(1, foto.height() // reduccion),
+            libre, suave,
+        )  # fmt: skip
+        foto = foto.scaled(tamano.width() // 4, tamano.height() // 4, libre, suave)
+        proporcion = self.devicePixelRatioF()
+        foto = foto.scaled(
+            round(tamano.width() * proporcion), round(tamano.height() * proporcion),
+            libre, suave,
+        )  # fmt: skip
+        foto.setDevicePixelRatio(proporcion)
         return foto
 
     def _fundir(self, desde, hasta):
+        self._opacidad.setEnabled(True)
         self._fundido.stop()
         self._fundido.setStartValue(desde)
         self._fundido.setEndValue(hasta)
@@ -145,7 +195,9 @@ class PanelCreditos(QWidget):
 
     def _al_terminar_fundido(self):
         if self._opacidad.opacity() < 0.01:
+            self._vivo.stop()
             self.hide()
+        self._opacidad.setEnabled(False)
 
     def _centrar_tarjeta(self):
         self.tarjeta.move(
@@ -184,12 +236,7 @@ class PanelCreditos(QWidget):
         pintor.save()
         pintor.setClipPath(forma)
         if self._borroso is not None:
-            proporcion = self._borroso.devicePixelRatio()
-            origen = QRectF(
-                caja.x() * proporcion, caja.y() * proporcion,
-                caja.width() * proporcion, caja.height() * proporcion,
-            )  # fmt: skip
-            pintor.drawPixmap(caja, self._borroso, origen)
+            pintor.drawPixmap(caja.topLeft(), self._borroso)
         pintor.fillRect(caja, QColor(255, 255, 255, 18))  # vidrio apenas lechoso
         # Reflejo: un brillo que baja desde el borde de arriba
         reflejo = QLinearGradient(

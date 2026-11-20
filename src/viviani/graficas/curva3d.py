@@ -23,7 +23,6 @@ from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
-    QImage,
     QLinearGradient,
     QPainter,
     QPainterPath,
@@ -34,13 +33,12 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from viviani.formato import formatear_radio
-from viviani.tema import FAMILIAS_MONO, FAMILIAS_TITULO, paleta_exportacion
+from viviani.tema import FAMILIAS_MONO
 
 GRADOS_POR_SEGUNDO = 15  # una vuelta completa cada 24 s: lento, no distrae
 ELEVACION = math.radians(22)  # la cámara mira un poco desde arriba
 ACIMUT_INICIAL = math.radians(35)
 INTERVALO_MS = 16  # unos 60 cuadros por segundo
-LADO_EXPORTACION = 2400  # px: 20 cm a 300 ppp
 DURACION_CAMBIO_MS = 350  # la esfera crece o se encoge al cambiar R
 TAMANO_CAMBIO = (0.55, 1.45)  # límites del tamaño inicial de esa transición
 MARCAS = (-1.0, -0.5, 0.5, 1.0)  # posiciones de los números en los ejes (en R)
@@ -174,23 +172,6 @@ class GraficaCurva3D(QWidget):
         self._zona = zona
         self.update()
 
-    def exportar(self, ruta):
-        """Guarda un PNG cuadrado de 300 ppp con fondo blanco."""
-        imagen = QImage(LADO_EXPORTACION, LADO_EXPORTACION, QImage.Format.Format_ARGB32)
-        puntos_por_metro = round(300 / 0.0254)
-        imagen.setDotsPerMeterX(puntos_por_metro)
-        imagen.setDotsPerMeterY(puntos_por_metro)
-        pintor = QPainter(imagen)
-        self._pintar(
-            pintor, LADO_EXPORTACION, LADO_EXPORTACION, paleta_exportacion(), True
-        )
-        pintor.end()
-        if not imagen.save(ruta, "PNG"):
-            raise OSError("no se pudo escribir el archivo")
-
-    def nombre_sugerido(self):
-        return f"viviani_3d_R{formatear_radio(self.radio).replace('.', '-')}cm.png"
-
     def descripcion_accesible(self):
         radio = formatear_radio(self.radio)
         return (
@@ -245,27 +226,20 @@ class GraficaCurva3D(QWidget):
     # --- Dibujo --------------------------------------------------------
     def paintEvent(self, _evento):
         pintor = QPainter(self)
-        self._pintar(pintor, self.width(), self.height(), self.colores, False)
+        self._pintar(pintor, self.width(), self.height(), self.colores)
         pintor.end()
 
-    def _pintar(self, pintor, ancho, alto, colores, exportando):
+    def _pintar(self, pintor, ancho, alto, colores):
         pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if exportando:  # en pantalla el fondo es transparente: se ve la tarjeta
-            pintor.fillRect(QRectF(0, 0, ancho, alto), QColor(colores["superficie"]))
-
-        # En pantalla la esfera se centra en la zona libre que indica la
-        # ventana; al exportar, en toda la imagen.
-        zona = QRectF(0, 0, ancho, alto)
-        if not exportando and self._zona is not None:
-            zona = self._zona
+        # La esfera se centra en la zona libre que indica la ventana
+        zona = QRectF(0, 0, ancho, alto) if self._zona is None else self._zona
         lado = min(zona.width(), zona.height())
         escala = 0.36 * lado  # radio de la esfera en píxeles
         centro = zona.center() + QPointF(0, 0.03 * lado)
-        if not exportando:
-            self._escena = (centro, escala)  # para repintar solo esa zona
-        grosor = lado / 600  # los grosores crecen con el tamaño (exportación)
+        self._escena = (centro, escala)  # para repintar solo esa zona
+        grosor = lado / 600  # los grosores crecen con el tamaño
 
-        tamano = 1.0 if exportando else self._tamano_actual()
+        tamano = self._tamano_actual()
 
         def proyectar(puntos, factor):
             h, v, d = girar(puntos, self._acimut)
@@ -299,7 +273,7 @@ class GraficaCurva3D(QWidget):
         self._pintar_punto_doble(pintor, a_pantalla, colores, grosor, lado)
         self._pintar_ejes(pintor, a_ejes, colores, grosor, lado, delante=True)
         self._pintar_marcas(pintor, a_ejes, colores, grosor, lado)
-        self._pintar_rotulos(pintor, ancho, alto, lado, colores, exportando)
+        self._pintar_rotulos(pintor, lado, colores)
 
     @staticmethod
     def _caminos(lineas, a_pantalla):
@@ -343,14 +317,10 @@ class GraficaCurva3D(QWidget):
     def _pintar_esfera(pintor, centro, escala, colores, grosor):
         luz = QPointF(centro.x() - 0.35 * escala, centro.y() - 0.4 * escala)
         degradado = QRadialGradient(luz, 1.4 * escala)
-        if colores["fondo"] == "#FFFFFF":  # imagen exportada: vidrio claro
-            claro, sombra = QColor("#FFFFFF"), QColor(colores["esfera"])
-            claro.setAlphaF(0.55)
-            sombra.setAlphaF(0.22)
-        else:  # pantalla oscura: vidrio con un leve reflejo cian
-            claro, sombra = QColor("#FFFFFF"), QColor(colores["esfera"])
-            claro.setAlphaF(0.06)
-            sombra.setAlphaF(0.02)
+        # Vidrio oscuro con un reflejo blanco muy leve
+        claro, sombra = QColor("#FFFFFF"), QColor(colores["esfera"])
+        claro.setAlphaF(0.06)
+        sombra.setAlphaF(0.02)
         degradado.setColorAt(0, claro)
         degradado.setColorAt(1, sombra)
         borde = QColor(colores["esfera"])
@@ -416,21 +386,12 @@ class GraficaCurva3D(QWidget):
                 texto = formatear_radio(posicion * self.radio)
                 pintor.drawText(punto + QPointF(5 * grosor, 13 * grosor), texto)
 
-    def _pintar_rotulos(self, pintor, ancho, alto, lado, colores, exportando):
-        radio = f"R = {formatear_radio(self.radio)} cm"
-        pintor.setPen(QColor(colores["texto_sec"]))
-        if exportando:
-            pintor.setFont(self._fuente(FAMILIAS_TITULO, 0.032 * lado))
-            pintor.setPen(QColor(colores["texto"]))
-            pintor.drawText(
-                QRectF(0, 0.03 * alto, ancho, 0.06 * alto),
-                Qt.AlignmentFlag.AlignCenter,
-                f"Ventana de Viviani sobre la esfera de radio {radio[4:]}",
-            )
-            return
-        # Debajo de la esfera, a la izquierda del eje Z
+    def _pintar_rotulos(self, pintor, lado, colores):
+        """El radio actual, debajo de la esfera y a la izquierda del eje Z."""
         centro, escala = self._escena
+        pintor.setPen(QColor(colores["texto_sec"]))
         pintor.setFont(self._fuente(FAMILIAS_MONO, 0.022 * lado))
+        radio = f"R = {formatear_radio(self.radio)} cm"
         pintor.drawText(centro + QPointF(-1.05 * escala, 1.12 * escala), radio)
 
     @staticmethod

@@ -41,24 +41,6 @@ _COLORES = {
     "esfera":             "#6B7383",
 }
 
-# Colores para las imágenes PNG del reporte: fondo blanco y tonos oscuros,
-# porque se van a imprimir.
-_COLORES_EXPORTACION = {
-    "superficie":         "#FFFFFF",
-    "fondo":              "#FFFFFF",
-    "fondo_grafica":      "#FFFFFF",
-    "texto":              "#000000",
-    "texto_sec":          "#000000",
-    "etiqueta":           "#333333",
-    "borde":              "#7A8494",
-    "separador":          "#D5DAE1",
-    "serie_azul":         "#1F5FBF",
-    "serie_naranja":      "#C24E00",
-    "serie_turquesa":     "#6A3FD0",
-    "punto_doble":        "#C2183F",
-    "esfera":             "#7A8494",
-}
-
 # Tipografía: todas vienen con Windows, no hay que instalar nada.
 # Una sola familia (Segoe UI Variable) para casi todo; la monoespaciada solo
 # para los números pequeños de los ejes 3D.
@@ -72,13 +54,6 @@ FAMILIAS_GRAFICAS = ["Segoe UI", "DejaVu Sans"]
 def paleta():
     """Devuelve un diccionario {nombre: "#RRGGBB"} con todos los colores."""
     return dict(_COLORES)
-
-
-def paleta_exportacion():
-    """Paleta para las imágenes PNG del reporte (fondo blanco)."""
-    colores = paleta()
-    colores.update(_COLORES_EXPORTACION)
-    return colores
 
 
 def rgba(color, alfa):

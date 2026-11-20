@@ -46,7 +46,6 @@ No necesita Python. Descomprima `PerimetroViviani-onedir.zip` y abra
 |---|---|
 | Enter | Calcular |
 | Esc | Cancelar el cálculo en curso o saltar la animación |
-| Ctrl+S | Guardar la curva 3D como PNG (300 ppp, fondo blanco) |
 
 Windows SmartScreen o el antivirus pueden avisar al abrir un `.exe` que no está
 firmado (es un falso positivo frecuente con PyInstaller). Si ocurre, elija

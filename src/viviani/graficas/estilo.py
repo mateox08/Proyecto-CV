@@ -1,8 +1,4 @@
-"""Estilo común de las tres gráficas (DISENO 8.1 y 8.5).
-
-Una misma función de dibujo sirve para la pantalla y para exportar el PNG:
-solo cambia el `Estilo` (tamaños de letra y grosores) y la paleta de colores.
-"""
+"""Estilo de la gráfica de Riemann (matplotlib): letras, grosores y colores."""
 
 from dataclasses import dataclass
 
@@ -10,8 +6,6 @@ from matplotlib.ticker import FuncFormatter
 
 from viviani.formato import formatear_radio
 from viviani.tema import FAMILIAS_GRAFICAS
-
-METADATOS = {"Software": "Perímetro de la Ventana de Viviani"}
 
 
 @dataclass(frozen=True)
@@ -36,11 +30,6 @@ def estilo_pantalla(escala_texto=1.0):
         lineas=1.0,
         marcadores=1.0,
     )
-
-
-def estilo_exportacion():
-    """Tamaños de DISENO 8.5: líneas de 1,2 pt (2 · 0,6) y marcadores de 4 pt."""
-    return Estilo(titulo=10, rotulo=9, marcas=8, leyenda=8, lineas=0.6, marcadores=0.8)
 
 
 def rc_de(colores, estilo):

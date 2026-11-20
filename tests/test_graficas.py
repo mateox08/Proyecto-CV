@@ -1,10 +1,7 @@
 """Pruebas básicas de las dos gráficas (sin abrir ventanas)."""
 
-import tempfile
 import unittest
-from pathlib import Path
 
-from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 
 from viviani.calculo import calcular
@@ -15,14 +12,10 @@ APP = QApplication.instance() or QApplication([])
 
 
 class PruebasGraficas(unittest.TestCase):
-    def test_exportar_3d_crea_png(self):
+    def test_curva_3d_cambia_de_radio(self):
         grafica = GraficaCurva3D(paleta(), reducir_movimiento=True)
         grafica.mostrar(7.5)
-        self.assertEqual(grafica.nombre_sugerido(), "viviani_3d_R7-5cm.png")
-        with tempfile.TemporaryDirectory() as carpeta:
-            ruta = str(Path(carpeta) / "curva.png")
-            grafica.exportar(ruta)
-            self.assertGreaterEqual(QImage(ruta).width(), 2000)
+        self.assertIn("7.5 centímetros", grafica.descripcion_accesible())
 
     def test_riemann_muestra_y_salta_la_animacion(self):
         grafica = GraficaRiemann(paleta())

@@ -15,16 +15,13 @@ demás flota encima, a los lados:
     SUBINTERVALOS n         (  grande   )            VALOR DE CONTROL ...
     ____10______                                     ERROR ...
        ( orbe Calcular )                             [ suma de Riemann ]
-    [Exportar PNG]                                   [   compacta      ]
+                                                     [   compacta      ]
 """
 
-from pathlib import Path
-
-from PySide6.QtCore import QEvent, QRectF, QSize, QStandardPaths, Qt, QTimer
+from PySide6.QtCore import QEvent, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QCursor, QFont, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
-    QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -55,7 +52,6 @@ ANCHO_DATOS = 300  # px: campos y botón Calcular
 ANCHO_RESULTADOS = 400  # px: resultados y gráfica de Riemann
 RETARDO_PROGRESO_MS = 300  # el arco de progreso solo aparece si tarda más
 INTERVALO_CURSOR_MS = 33  # cada cuánto se revisa dónde está el cursor
-DURACION_AVISO_MS = 2500  # "Imagen guardada"
 METODO = "punto_medio"  # en esta curva los tres métodos coinciden en la práctica
 
 
@@ -117,7 +113,7 @@ class VentanaPrincipal(QMainWindow):
         cuerpo.addLayout(self._crear_columna_resultado())
         raiz.addLayout(cuerpo, 1)
 
-        self.creditos = PanelCreditos(fondo)
+        self.creditos = PanelCreditos(fondo, self.grafica_3d)
 
     def _crear_encabezado(self):
         # Cabecera discreta: logo pequeño, nombre en gris y "Créditos" como enlace
@@ -155,11 +151,6 @@ class VentanaPrincipal(QMainWindow):
         self.boton_calcular = BotonCalcular(self.colores, ANCHO_DATOS)
         self.boton_calcular.setToolTip("Calcular el perímetro (Enter)")
 
-        self.boton_exportar = QPushButton("Exportar curva como PNG")
-        self.boton_exportar.setObjectName("enlace")
-        self.boton_exportar.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.boton_exportar.setToolTip("Guardar la curva 3D como imagen (Ctrl+S)")
-
         # El botón trae un margen para su halo: los campos se corren lo mismo
         # para que todo quede alineado a la izquierda.
         margen = BotonCalcular.MARGEN
@@ -174,11 +165,6 @@ class VentanaPrincipal(QMainWindow):
         columna.addSpacing(4)
         columna.addWidget(self.boton_calcular, 0, Qt.AlignmentFlag.AlignLeft)
         columna.addStretch(1)
-        fila = QHBoxLayout()
-        fila.addSpacing(margen - 4)
-        fila.addWidget(self.boton_exportar, 0, Qt.AlignmentFlag.AlignLeft)
-        fila.addStretch(1)
-        columna.addLayout(fila)
         return columna
 
     def _crear_columna_resultado(self):
@@ -261,7 +247,6 @@ class VentanaPrincipal(QMainWindow):
 
     def _conectar(self):
         self.boton_calcular.clicked.connect(self.calcular_ahora)
-        self.boton_exportar.clicked.connect(self._exportar_3d)
         self.boton_creditos.clicked.connect(self.creditos.abrir)
         for caja in (self.campo_radio, self.campo_n):
             caja.returnPressed.connect(self.calcular_ahora)
@@ -277,7 +262,6 @@ class VentanaPrincipal(QMainWindow):
         self._progreso_visible = False
 
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, self._al_pulsar_escape)
-        QShortcut(QKeySequence("Ctrl+S"), self, self._exportar_3d)
 
         # El orbe y el fondo reaccionan al cursor: se revisa su posición
         # unas 30 veces por segundo.
@@ -386,35 +370,6 @@ class VentanaPrincipal(QMainWindow):
         ):
             self._saltar_animaciones()  # el clic sigue haciendo lo suyo
         return False
-
-    # =====================================================================
-    # Exportar
-    # =====================================================================
-    def _exportar_3d(self):
-        carpeta = QStandardPaths.writableLocation(
-            QStandardPaths.StandardLocation.PicturesLocation
-        )
-        sugerido = str(Path(carpeta) / self.grafica_3d.nombre_sugerido())
-        ruta, _filtro = QFileDialog.getSaveFileName(
-            self, "Guardar imagen", sugerido, "Imagen PNG (*.png)"
-        )
-        if not ruta:
-            return
-        try:
-            self.grafica_3d.exportar(ruta)
-        except Exception:  # disco lleno, sin permiso, etc.
-            self._avisar_en_boton(" No se pudo guardar")
-            self.sonidos.error()
-            return
-        self._avisar_en_boton(" Imagen guardada")
-        self.sonidos.clic()
-
-    def _avisar_en_boton(self, texto):
-        """Cambia un momento el texto del botón Exportar."""
-        self.boton_exportar.setText(texto)
-        QTimer.singleShot(
-            DURACION_AVISO_MS, lambda: self.boton_exportar.setText(" Exportar PNG")
-        )
 
     # =====================================================================
     # Cierre

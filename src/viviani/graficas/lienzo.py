@@ -1,8 +1,7 @@
-"""Lienzo base de las tres gráficas: tema, exportación y animación.
+"""Lienzo base de las gráficas de matplotlib: dibujo y animación.
 
 Cada gráfica concreta solo escribe `_dibujar(fig, colores, estilo)`, que
-dibuja el estado FINAL sobre la figura que reciba. Esa misma función se usa
-para la pantalla y para el PNG exportado (en una figura nueva).
+dibuja el estado FINAL sobre la figura que reciba.
 """
 
 import matplotlib
@@ -12,19 +11,12 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPalette
 
 from viviani.graficas.animacion import Animador, Repintado
-from viviani.graficas.estilo import (
-    METADATOS,
-    estilo_exportacion,
-    estilo_pantalla,
-    rc_de,
-)
-from viviani.tema import paleta_exportacion
+from viviani.graficas.estilo import estilo_pantalla, rc_de
 
 
 class LienzoBase(FigureCanvasQTAgg):
     animacion_terminada = Signal()  # al acabar la animación o al saltarla
 
-    TAMANO_EXPORTACION_CM = (16, 10)
     DISENO = "constrained"  # reparte los márgenes automáticamente
 
     def __init__(self, colores, escala_texto=1.0):
@@ -39,13 +31,6 @@ class LienzoBase(FigureCanvasQTAgg):
     # --- Lo que escribe cada gráfica ---------------------------------
     def _dibujar(self, fig, colores, estilo):
         """Dibuja el estado final en `fig` y devuelve un dict de artistas."""
-        raise NotImplementedError
-
-    def titulo(self):
-        """Título del PNG (va en los metadatos)."""
-        raise NotImplementedError
-
-    def nombre_sugerido(self):
         raise NotImplementedError
 
     def descripcion_accesible(self):
@@ -107,29 +92,6 @@ class LienzoBase(FigureCanvasQTAgg):
         """Cambia entre modo claro y oscuro en caliente."""
         self.colores = colores
         self.redibujar()
-
-    # --- Exportación -------------------------------------------------
-    def exportar(self, ruta):
-        """Guarda un PNG de 300 ppp, fondo blanco, en estado final."""
-        ancho_cm, alto_cm = self.TAMANO_EXPORTACION_CM
-        fig = Figure(figsize=(ancho_cm / 2.54, alto_cm / 2.54), layout=self.DISENO)
-        colores = paleta_exportacion()
-        estilo = estilo_exportacion()
-        metadatos = dict(METADATOS, Title=self.titulo())
-        decorada = getattr(self, "decorada", True)
-        self.decorada = True  # el PNG lleva título y leyenda dentro
-        with matplotlib.rc_context(rc_de(colores, estilo)):
-            self._dibujar(fig, colores, estilo)
-            self.decorada = decorada
-            fig.savefig(
-                ruta,
-                format="png",
-                dpi=300,
-                bbox_inches="tight",
-                pad_inches=0.05,
-                facecolor=colores["fondo"],
-                metadata=metadatos,
-            )
 
     # --- Animación ---------------------------------------------------
     def esta_animando(self):
