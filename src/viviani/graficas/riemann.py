@@ -17,7 +17,6 @@ from viviani.graficas.animacion import salida_suave
 from viviani.graficas.estilo import (
     FORMATO_MARCAS,
     poner_leyenda,
-    poner_titulo,
     preparar_ejes_2d,
 )
 from viviani.graficas.lienzo import LienzoBase
@@ -147,7 +146,17 @@ class GraficaRiemann(LienzoBase):
         radio, r = self.radio, self.resultado
         eje = fig.add_subplot()
         preparar_ejes_2d(eje, colores, estilo)
-        poner_titulo(fig, self.titulo(), colores, estilo)
+        fig.set_facecolor(colores["fondo_grafica"])
+        # El título va sobre el EJE (no sobre la figura) para quedar centrado
+        # con la gráfica; si hay resultado deja sitio para el subtítulo.
+        separacion = 2.2 * estilo.leyenda if self.resultado is not None else 6
+        eje.set_title(
+            self.titulo(),
+            fontsize=estilo.titulo,
+            fontweight="semibold",
+            color=colores["texto"],
+            pad=separacion,
+        )
 
         t = np.linspace(0, 2 * math.pi, 400)
         eje.plot(
@@ -180,7 +189,7 @@ class GraficaRiemann(LienzoBase):
                 linewidths=0,
             )
         self._poner_anotacion(eje, colores, estilo)
-        self._poner_leyenda(fig, colores, estilo, con_puntos=puntos is not None)
+        self._poner_leyenda(eje, colores, estilo, con_puntos=puntos is not None)
         return {"rectangulos": rectangulos, "puntos": puntos}
 
     def _dar_formato_ejes(self, eje, radio, estilo):
@@ -201,9 +210,19 @@ class GraficaRiemann(LienzoBase):
             barras = len(self.resultado.barras_altura)
             texto += f"  ·  {barras} barras agrupadas"
         # Subtítulo, debajo del título: así no tapa los rectángulos
-        eje.set_title(texto, fontsize=estilo.leyenda, color=colores["texto_sec"])
+        eje.annotate(
+            texto,
+            xy=(0.5, 1),
+            xycoords="axes fraction",
+            xytext=(0, 4),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=estilo.leyenda,
+            color=colores["texto_sec"],
+        )
 
-    def _poner_leyenda(self, fig, colores, estilo, con_puntos):
+    def _poner_leyenda(self, eje, colores, estilo, con_puntos):
         azul = colores["serie_azul"]
         elementos = [
             Line2D([], [], color=colores["texto"], linewidth=2 * estilo.lineas),
@@ -223,10 +242,15 @@ class GraficaRiemann(LienzoBase):
             )
             rotulos.append("Puntos de muestra")
         # Debajo del gráfico: arriba taparía la curva, que llega casi al borde.
-        leyenda = fig.legend(
+        leyenda = eje.legend(
             elementos,
             rotulos,
-            loc="outside lower center",
+            # Centrada bajo el EJE (no bajo la figura entera, que incluye el
+            # rótulo vertical y la correría a la derecha). El espacio de
+            # separación está en "alturas de letra": deja sitio a "t (rad)".
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0),
+            borderaxespad=3.4,
             ncols=len(elementos),
             frameon=False,
             columnspacing=1.2,
