@@ -20,9 +20,9 @@ from PySide6.QtGui import (
     QRadialGradient,
 )
 
-CIAN = "#4CC9F0"
-VIOLETA = "#9D7BFF"
-ROSA = "#FF6B8B"
+CIAN = "#7DD3C0"
+VIOLETA = "#8FB8DE"
+ROSA = "#F28B6C"
 
 
 def _color(hexadecimal, alfa):
@@ -60,8 +60,8 @@ def dibujar_logo(pintor, rect, giro=0.0, con_fondo=True):
     if con_fondo:
         # Cuadrado redondeado azul noche con un borde cian muy tenue
         fondo = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        fondo.setColorAt(0, QColor("#132042"))
-        fondo.setColorAt(1, QColor("#070B14"))
+        fondo.setColorAt(0, QColor("#1A1D23"))
+        fondo.setColorAt(1, QColor("#0B0C0F"))
         radio_esquina = 0.22 * lado
         pintor.setPen(QPen(_color(CIAN, 0.35), max(1.0, lado / 128)))
         pintor.setBrush(fondo)

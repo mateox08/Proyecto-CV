@@ -1,43 +1,44 @@
 """Colores, fuentes y medidas de la interfaz.
 
-La aplicación tiene un solo tema, oscuro, tipo "observatorio": fondo azul
-noche con una rejilla de puntos, luces suaves y acentos cian y violeta. Cada
-color tiene un nombre ("token") para no repetir códigos hexadecimales por
-todo el programa: si se quiere cambiar un color, se cambia solo aquí.
+La aplicación tiene un solo tema, oscuro y sobrio, tipo "grafito": fondo
+carbón neutro, texto casi blanco y un único acento verde menta. El ámbar y
+el coral se reservan para marcar puntos en las gráficas. Cada color tiene un
+nombre ("token") para no repetir códigos hexadecimales por todo el programa:
+si se quiere cambiar un color, se cambia solo aquí.
 """
 
 _COLORES = {
-    # Fondo de la ventana: degradado vertical con una rejilla de puntos
-    "fondo":              "#070B14",
-    "fondo_2":            "#0D1424",
-    "rejilla":            "#2A3550",
-    # Superficies (cajas de texto, aviso de error)
-    "superficie":         "#111A2E",
+    # Fondo de la ventana: carbón con una rejilla de puntos muy tenue
+    "fondo":              "#0B0C0F",
+    "fondo_2":            "#111318",
+    "rejilla":            "#2A2E36",
+    # Superficies (cajas, paneles)
+    "superficie":         "#15171C",
     # Fondo de las gráficas en pantalla: transparente. Formato #RRGGBBAA.
     "fondo_grafica":      "#00000000",
-    "borde":              "#26324A",
-    "borde_brillo":       "#5FD4FF",
-    "separador":          "#1C2740",
+    "borde":              "#2A2E36",
+    "borde_brillo":       "#7DD3C0",
+    "separador":          "#1E2127",
     # Texto
-    "texto":              "#E8EEF9",
-    "texto_sec":          "#9AA8C2",
-    "etiqueta":           "#8494B2",
-    # Acento (botón principal, foco, brillo)
-    "acento":             "#4CC9F0",
-    "acento_hover":       "#7FDBFF",
-    "acento_suave":       "#16314A",
-    "brillo":             "#4CC9F0",
-    "violeta":            "#9D7BFF",
-    "texto_sobre_acento": "#06101C",
+    "texto":              "#ECEDEF",
+    "texto_sec":          "#9BA1AB",
+    "etiqueta":           "#858B96",
+    # Acento único: verde menta
+    "acento":             "#7DD3C0",
+    "acento_hover":       "#A3E4D5",
+    "acento_suave":       "#1C2F2B",
+    "brillo":             "#7DD3C0",
+    "violeta":            "#8FB8DE",  # segundo tono, azul cielo apagado
+    "texto_sobre_acento": "#0B0C0F",
     # Estados
-    "error":              "#FF7A6B",
-    "fondo_error":        "#2A1418",
+    "error":              "#F28B82",
+    "fondo_error":        "#2A1716",
     # Series de las gráficas
-    "serie_azul":         "#4CC9F0",
-    "serie_naranja":      "#FFB454",
-    "serie_turquesa":     "#9D7BFF",  # la curva 3D va de cian a violeta
-    "punto_doble":        "#FF6B8B",
-    "esfera":             "#7C93C4",
+    "serie_azul":         "#7DD3C0",
+    "serie_naranja":      "#E8B76A",
+    "serie_turquesa":     "#8FB8DE",  # la curva 3D va de menta a azul cielo
+    "punto_doble":        "#F28B6C",
+    "esfera":             "#6B7383",
 }
 
 # Colores para las imágenes PNG del reporte: fondo blanco y tonos oscuros,
@@ -59,12 +60,10 @@ _COLORES_EXPORTACION = {
 }
 
 # Tipografía: todas vienen con Windows, no hay que instalar nada.
-#   - serif para títulos (aire "de libro de matemáticas")
-#   - Cambria para cifras (todos los dígitos del mismo alto)
-#   - sans para el texto normal
-#   - monoespaciada para las etiquetas pequeñas en mayúsculas
-FAMILIAS_TITULO = ["Georgia", "Cambria", "Times New Roman"]
-FAMILIAS_NUMEROS = ["Cambria", "Georgia", "Times New Roman"]
+# Una sola familia (Segoe UI Variable) para casi todo; la monoespaciada solo
+# para los números pequeños de los ejes 3D.
+FAMILIAS_TITULO = ["Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI"]
+FAMILIAS_NUMEROS = ["Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI"]
 FAMILIAS_INTERFAZ = ["Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI"]
 FAMILIAS_MONO = ["Cascadia Mono", "Consolas", "Courier New"]
 FAMILIAS_GRAFICAS = ["Segoe UI", "DejaVu Sans"]

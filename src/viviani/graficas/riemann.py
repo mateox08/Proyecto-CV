@@ -62,6 +62,7 @@ class GraficaRiemann(LienzoBase):
         super().__init__(colores, escala_texto)
         self.radio = 5.0
         self.resultado = None  # None: todavía no se ha calculado
+        self.decorada = False  # título y leyenda dentro de la figura
         self._elementos = {}
         self.redibujar()
 
@@ -147,16 +148,17 @@ class GraficaRiemann(LienzoBase):
         eje = fig.add_subplot()
         preparar_ejes_2d(eje, colores, estilo)
         fig.set_facecolor(colores["fondo_grafica"])
-        # El título va sobre el EJE (no sobre la figura) para quedar centrado
-        # con la gráfica; si hay resultado deja sitio para el subtítulo.
-        separacion = 2.2 * estilo.leyenda if self.resultado is not None else 6
-        eje.set_title(
-            self.titulo(),
-            fontsize=estilo.titulo,
-            fontweight="semibold",
-            color=colores["texto"],
-            pad=separacion,
-        )
+        # En pantalla el título y la leyenda los pone la ventana (con letra
+        # de la interfaz); en el PNG exportado van dentro de la imagen.
+        if self.decorada:
+            separacion = 2.2 * estilo.leyenda if self.resultado is not None else 6
+            eje.set_title(
+                self.titulo(),
+                fontsize=estilo.titulo,
+                fontweight="semibold",
+                color=colores["texto"],
+                pad=separacion,
+            )
 
         t = np.linspace(0, 2 * math.pi, 400)
         eje.plot(
@@ -188,8 +190,9 @@ class GraficaRiemann(LienzoBase):
                 color=colores["serie_naranja"],
                 linewidths=0,
             )
-        self._poner_anotacion(eje, colores, estilo)
-        self._poner_leyenda(eje, colores, estilo, con_puntos=puntos is not None)
+        if self.decorada:
+            self._poner_anotacion(eje, colores, estilo)
+            self._poner_leyenda(eje, colores, estilo, con_puntos=puntos is not None)
         return {"rectangulos": rectangulos, "puntos": puntos}
 
     def _dar_formato_ejes(self, eje, radio, estilo):
@@ -200,8 +203,8 @@ class GraficaRiemann(LienzoBase):
         )
         eje.set_ylim(0, 1.5 * radio)  # fijo: la altura es comparable entre cálculos
         eje.yaxis.set_major_formatter(FORMATO_MARCAS)
-        eje.set_xlabel("t (rad)", fontsize=estilo.rotulo)
-        eje.set_ylabel("f(t) (cm/rad)", fontsize=estilo.rotulo)
+        eje.set_xlabel("t", fontsize=estilo.rotulo)
+        eje.set_ylabel("f(t)", fontsize=estilo.rotulo)
 
     def _poner_anotacion(self, eje, colores, estilo):
         texto = f"Σ f(tᵢ)·Δt = {formatear_decimal(self.resultado.perimetro)} cm"

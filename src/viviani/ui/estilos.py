@@ -63,6 +63,20 @@ def hoja_de_estilos(c):
         border-color: {c["acento"]};
     }}
 
+    QPushButton#enlace {{
+        background: transparent;
+        border: none;
+        color: {c["texto_sec"]};
+        padding: 4px 6px;
+    }}
+    QPushButton#enlace:hover {{
+        color: {c["acento"]};
+    }}
+    QPushButton#enlace:focus {{
+        color: {c["acento"]};
+        text-decoration: underline;
+    }}
+
     QToolTip {{
         color: {c["texto"]};
         background: {c["superficie"]};

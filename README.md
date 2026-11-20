@@ -123,7 +123,7 @@ carpeta temporal cada vez que se abre.
 | Versión | Dónde está | Aspecto |
 |---|---|---|
 | 1.0 | etiqueta `v1.0` (rama `feature/interfaz-grafica`) | Tema claro con tarjetas |
-| 2.0 | rama `version-2` | Tema oscuro; la curva 3D ocupa el centro de la pantalla, botón orbe, Riemann compacta, créditos, pantalla de carga e icono |
+| 2.0 | rama `version-2` | Tema oscuro grafito; la curva 3D ocupa el centro, resultados y Riemann juntos a la derecha, créditos con efecto vidrio, pantalla de carga e icono |
 
 Para volver a la versión 1: `git checkout v1.0` (y `git checkout version-2`
 para regresar).
@@ -144,4 +144,9 @@ para regresar).
 
 ## Integrantes
 
-(Completar en orden alfabético por primer apellido.)
+- Darlyn Acosta
+- Juan Carrasco
+- Juan Espinoza
+- Mateo Saltos
+
+Profesora: Dra. Soveny Solís

@@ -5,8 +5,8 @@ Animación al llegar un resultado nuevo (se omite con "reducir movimiento"):
   - las filas de abajo aparecen una tras otra (escalonadas 70 ms).
 """
 
-from PySide6.QtCore import QElapsedTimer, QRectF, Qt, QTimer, QVariantAnimation
-from PySide6.QtGui import QPainter, QPen
+from PySide6.QtCore import QElapsedTimer, Qt, QTimer, QVariantAnimation
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QGridLayout,
@@ -20,7 +20,6 @@ from viviani import tema
 from viviani.formato import formatear_cientifico, formatear_medida
 from viviani.ui.componentes import (
     Separador,
-    degradado_cian_violeta,
     etiqueta_pequena,
     fuente,
 )
@@ -30,18 +29,21 @@ DURACION_FILA_MS = 260
 ESCALON_MS = 70
 SIN_VALOR = "—"
 
+# Superíndices Unicode -> texto normal, para escribirlos con <sup> (HTML).
+# La fuente de la interfaz no tiene el signo menos en superíndice "⁻".
+_NORMALES = str.maketrans("⁻⁰¹²³⁴⁵⁶⁷⁸⁹", "−0123456789")
 
-class NumeroDegradado(QLabel):
-    """Un QLabel cuyo texto se pinta con el degradado cian-violeta."""
 
-    def paintEvent(self, _evento):
-        pintor = QPainter(self)
-        pintor.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        pintor.setFont(self.font())
-        ancho = self.fontMetrics().horizontalAdvance(self.text())
-        pintor.setPen(QPen(degradado_cian_violeta(0, max(ancho, 1)), 1))
-        izquierda = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        pintor.drawText(QRectF(self.rect()), izquierda, self.text())
+def con_exponente(texto):
+    """'7.105 × 10⁻¹⁵ cm' -> '7.105 × 10<sup>−15</sup> cm' (para QLabel)."""
+    if "×" not in texto:
+        return texto
+    antes, despues = texto.split("× 10", 1)
+    exponente = ""
+    while despues and despues[0] in "⁻⁰¹²³⁴⁵⁶⁷⁸⁹":
+        exponente += despues[0]
+        despues = despues[1:]
+    return f"{antes}× 10<sup>{exponente.translate(_NORMALES)}</sup>{despues}"
 
 
 class PanelResultado(QWidget):
@@ -53,8 +55,10 @@ class PanelResultado(QWidget):
         diseno.setSpacing(6)
 
         diseno.addWidget(etiqueta_pequena("Perímetro aproximado"))
-        self.etiqueta_perimetro = NumeroDegradado(SIN_VALOR)
-        self.etiqueta_perimetro.setFont(fuente(tema.FAMILIAS_NUMEROS, 34))
+        self.etiqueta_perimetro = QLabel(SIN_VALOR)
+        self.etiqueta_perimetro.setFont(
+            fuente(tema.FAMILIAS_NUMEROS, 32, QFont.Weight.Light)
+        )
         self.etiqueta_perimetro.setMinimumHeight(64)
         self.etiqueta_perimetro.setSizePolicy(
             QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
@@ -73,7 +77,7 @@ class PanelResultado(QWidget):
             rejilla.setContentsMargins(0, 4, 0, 4)
             rejilla.addWidget(etiqueta_pequena(texto), 0, 0)
             valor = QLabel(SIN_VALOR)
-            valor.setFont(fuente(tema.FAMILIAS_NUMEROS, 15))
+            valor.setFont(fuente(tema.FAMILIAS_NUMEROS, 13))
             derecha = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
             valor.setAlignment(derecha)
             rejilla.addWidget(valor, 0, 1)
@@ -115,8 +119,10 @@ class PanelResultado(QWidget):
         for fila in self._filas:
             fila.show()
         self.etiqueta_control.setText(f"{formatear_medida(r.referencia)} cm")
-        self.etiqueta_error_abs.setText(f"{formatear_cientifico(r.error_absoluto)} cm")
-        self.etiqueta_error_rel.setText(f"{formatear_cientifico(r.error_relativo)} %")
+        error_abs = f"{formatear_cientifico(r.error_absoluto)} cm"
+        error_rel = f"{formatear_cientifico(r.error_relativo)} %"
+        self.etiqueta_error_abs.setText(con_exponente(error_abs))
+        self.etiqueta_error_rel.setText(con_exponente(error_rel))
         perimetro = formatear_medida(r.perimetro)
         self.setAccessibleName(f"Resultado. Perímetro aproximado {perimetro} cm.")
 

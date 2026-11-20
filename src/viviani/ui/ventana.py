@@ -21,7 +21,7 @@ demás flota encima, a los lados:
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QRectF, QSize, QStandardPaths, Qt, QTimer
-from PySide6.QtGui import QCursor, QKeySequence, QPainter, QShortcut
+from PySide6.QtGui import QCursor, QFont, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -35,11 +35,14 @@ from PySide6.QtWidgets import (
 )
 
 from viviani import tema, validacion
-from viviani.ui import estilos, iconos, sistema
+from viviani.formato import formatear_entero
+from viviani.ui import estilos, sistema
 from viviani.ui.componentes import (
-    BotonOrbe,
+    BotonCalcular,
     CampoLinea,
     FondoVentana,
+    Separador,
+    etiqueta_pequena,
     fuente,
 )
 from viviani.ui.creditos import PanelCreditos
@@ -48,6 +51,8 @@ from viviani.ui.resultado import PanelResultado
 from viviani.ui.trabajador import GestorTareas
 
 TITULO = "Ventana de Viviani"
+ANCHO_DATOS = 300  # px: campos y botón Calcular
+ANCHO_RESULTADOS = 400  # px: resultados y gráfica de Riemann
 RETARDO_PROGRESO_MS = 300  # el arco de progreso solo aparece si tarda más
 INTERVALO_CURSOR_MS = 33  # cada cuánto se revisa dónde está el cursor
 DURACION_AVISO_MS = 2500  # "Imagen guardada"
@@ -103,7 +108,7 @@ class VentanaPrincipal(QMainWindow):
         capas.addWidget(encima, 0, 0)
 
         raiz = QVBoxLayout(encima)
-        raiz.setContentsMargins(40, 22, 40, 20)
+        raiz.setContentsMargins(48, 20, 48, 24)
         raiz.setSpacing(0)
         raiz.addLayout(self._crear_encabezado())
         cuerpo = QHBoxLayout()
@@ -115,17 +120,19 @@ class VentanaPrincipal(QMainWindow):
         self.creditos = PanelCreditos(fondo)
 
     def _crear_encabezado(self):
+        # Cabecera discreta: logo pequeño, nombre en gris y "Créditos" como enlace
         titulo = QLabel(TITULO)
-        titulo.setFont(fuente(tema.FAMILIAS_TITULO, 22))
+        titulo.setFont(fuente(tema.FAMILIAS_INTERFAZ, 11, QFont.Weight.DemiBold))
+        titulo.setProperty("rol", "etiqueta")
 
         self.boton_creditos = QPushButton("Créditos")
-        self.boton_creditos.setObjectName("fantasma")
+        self.boton_creditos.setObjectName("enlace")
         self.boton_creditos.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.boton_creditos.setToolTip("Integrantes del grupo y herramientas usadas")
+        self.boton_creditos.setToolTip("Integrantes del grupo")
 
         encabezado = QHBoxLayout()
-        encabezado.setSpacing(14)
-        encabezado.addWidget(Logo())
+        encabezado.setSpacing(10)
+        encabezado.addWidget(Logo(28))
         encabezado.addWidget(titulo)
         encabezado.addStretch(1)
         encabezado.addWidget(self.boton_creditos, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -143,42 +150,75 @@ class VentanaPrincipal(QMainWindow):
         self.campo_radio, self.mensaje_radio = self.bloque_r.caja, self.bloque_r.mensaje
         self.campo_n, self.mensaje_n = self.bloque_n.caja, self.bloque_n.mensaje
         for bloque in (self.bloque_r, self.bloque_n):
-            bloque.setFixedWidth(300)
+            bloque.setFixedWidth(ANCHO_DATOS)
 
-        self.boton_calcular = BotonOrbe(self.colores, self._quieto)
+        self.boton_calcular = BotonCalcular(self.colores, ANCHO_DATOS)
         self.boton_calcular.setToolTip("Calcular el perímetro (Enter)")
 
-        self.boton_exportar = QPushButton(" Exportar curva PNG")
-        self.boton_exportar.setObjectName("fantasma")
-        self.boton_exportar.setIcon(
-            iconos.icono("image-down", self.colores["texto_sec"], 16)
-        )
+        self.boton_exportar = QPushButton("Exportar curva como PNG")
+        self.boton_exportar.setObjectName("enlace")
         self.boton_exportar.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.boton_exportar.setToolTip("Guardar la curva 3D como imagen PNG (Ctrl+S)")
+        self.boton_exportar.setToolTip("Guardar la curva 3D como imagen (Ctrl+S)")
 
+        # El botón trae un margen para su halo: los campos se corren lo mismo
+        # para que todo quede alineado a la izquierda.
+        margen = BotonCalcular.MARGEN
         columna = QVBoxLayout()
-        columna.setSpacing(8)
-        columna.addStretch(2)
-        columna.addWidget(self.bloque_r)
-        columna.addSpacing(6)
-        columna.addWidget(self.bloque_n)
-        columna.addWidget(self.boton_calcular, 0, Qt.AlignmentFlag.AlignHCenter)
-        columna.addStretch(3)
-        columna.addWidget(self.boton_exportar, 0, Qt.AlignmentFlag.AlignLeft)
+        columna.setSpacing(10)
+        columna.addStretch(1)
+        for widget in (self.bloque_r, self.bloque_n):
+            fila = QHBoxLayout()
+            fila.addSpacing(margen)
+            fila.addWidget(widget)
+            columna.addLayout(fila)
+        columna.addSpacing(4)
+        columna.addWidget(self.boton_calcular, 0, Qt.AlignmentFlag.AlignLeft)
+        columna.addStretch(1)
+        fila = QHBoxLayout()
+        fila.addSpacing(margen - 4)
+        fila.addWidget(self.boton_exportar, 0, Qt.AlignmentFlag.AlignLeft)
+        fila.addStretch(1)
+        columna.addLayout(fila)
         return columna
 
     def _crear_columna_resultado(self):
+        """Resultados y, justo debajo, la suma de Riemann: un solo bloque."""
         self.panel_resultado = PanelResultado(self.colores, self._quieto)
-        self.panel_resultado.setFixedWidth(360)
-        # La suma de Riemann va compacta, abajo a la derecha
-        self.grafica_riemann.setFixedSize(520, 300)
+        self.panel_resultado.setFixedWidth(ANCHO_RESULTADOS)
+
+        # Cabecera de la gráfica: nombre a la izquierda, n a la derecha
+        nombre = etiqueta_pequena("Suma de Riemann")
+        self.detalle_riemann = etiqueta_pequena("")
+        cabecera = QHBoxLayout()
+        cabecera.addWidget(nombre)
+        cabecera.addStretch(1)
+        cabecera.addWidget(self.detalle_riemann)
+
+        self.grafica_riemann.setFixedSize(ANCHO_RESULTADOS + 16, 230)
+        # Leyenda con la letra de la interfaz (más limpia que la de matplotlib)
+        c = self.colores
+        leyenda = QLabel(
+            f'<span style="color:{c["texto"]}">━</span> f(t) &nbsp;&nbsp; '
+            f'<span style="color:{c["serie_azul"]}">▮</span> rectángulos &nbsp;&nbsp; '
+            f'<span style="color:{c["serie_naranja"]}">●</span> puntos de muestra'
+        )
+        leyenda.setProperty("rol", "etiqueta")
+        leyenda.setFont(fuente(tema.FAMILIAS_INTERFAZ, 9))
+
+        bloque = QVBoxLayout()
+        bloque.setSpacing(6)
+        bloque.addWidget(self.panel_resultado)
+        bloque.addSpacing(18)
+        bloque.addWidget(Separador())
+        bloque.addSpacing(10)
+        bloque.addLayout(cabecera)
+        bloque.addWidget(self.grafica_riemann)
+        bloque.addWidget(leyenda, 0, Qt.AlignmentFlag.AlignHCenter)
 
         columna = QVBoxLayout()
-        columna.setSpacing(0)
-        columna.addStretch(2)
-        columna.addWidget(self.panel_resultado, 0, Qt.AlignmentFlag.AlignRight)
         columna.addStretch(1)
-        columna.addWidget(self.grafica_riemann, 0, Qt.AlignmentFlag.AlignRight)
+        columna.addLayout(bloque)
+        columna.addStretch(1)
         # Atajos a las etiquetas de resultado (los usan las pruebas)
         pr = self.panel_resultado
         self.etiqueta_perimetro = pr.etiqueta_perimetro
@@ -291,6 +331,10 @@ class VentanaPrincipal(QMainWindow):
         self.panel_resultado.mostrar_resultado(resultado, animar=not reducir)
         self.sonidos.resultado()
         self.grafica_3d.mostrar(resultado.radio)
+        detalle = f"n = {formatear_entero(resultado.n)}"
+        if resultado.agrupado:
+            detalle += f"  ·  {len(resultado.barras_altura)} barras agrupadas"
+        self.detalle_riemann.setText(detalle)
         self.grafica_riemann.mostrar_resultado(
             resultado, animar=True, reducir_movimiento=reducir
         )

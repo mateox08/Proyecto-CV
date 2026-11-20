@@ -116,8 +116,11 @@ class LienzoBase(FigureCanvasQTAgg):
         colores = paleta_exportacion()
         estilo = estilo_exportacion()
         metadatos = dict(METADATOS, Title=self.titulo())
+        decorada = getattr(self, "decorada", True)
+        self.decorada = True  # el PNG lleva título y leyenda dentro
         with matplotlib.rc_context(rc_de(colores, estilo)):
             self._dibujar(fig, colores, estilo)
+            self.decorada = decorada
             fig.savefig(
                 ruta,
                 format="png",
