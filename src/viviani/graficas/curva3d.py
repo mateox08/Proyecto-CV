@@ -41,6 +41,9 @@ ELEVACION = math.radians(22)  # la cámara mira un poco desde arriba
 ACIMUT_INICIAL = math.radians(35)
 INTERVALO_MS = 16  # unos 60 cuadros por segundo
 LADO_EXPORTACION = 2400  # px: 20 cm a 300 ppp
+DURACION_CAMBIO_MS = 350  # la esfera crece o se encoge al cambiar R
+TAMANO_CAMBIO = (0.55, 1.45)  # límites del tamaño inicial de esa transición
+MARCAS = (-1.0, -0.5, 0.5, 1.0)  # posiciones de los números en los ejes (en R)
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +135,9 @@ class GraficaCurva3D(QWidget):
         self._curva = puntos_curva()
         self._malla = lineas_esfera()
         self._acimut = ACIMUT_INICIAL
+        # Transición al cambiar el radio: tamaño de partida y su reloj
+        self._tamano_inicial = 1.0
+        self._cambio = QElapsedTimer()
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         self.setMinimumSize(280, 280)
         self.setAccessibleName(self.descripcion_accesible())
@@ -146,7 +152,17 @@ class GraficaCurva3D(QWidget):
 
     # --- Interfaz pública ----------------------------------------------
     def mostrar(self, radio):
-        """Cambia el radio (solo cambian los rótulos: la forma es la misma)."""
+        """Cambia el radio.
+
+        La esfera siempre ocupa el mismo lugar en la pantalla; lo que cambia
+        son los números de los ejes (en cm). Para que se note el cambio, la
+        esfera parte del tamaño que tendría el radio anterior con los ejes
+        nuevos y crece (o se encoge) hasta su tamaño normal.
+        """
+        if self._girar and radio != self.radio:
+            minimo, maximo = TAMANO_CAMBIO
+            self._tamano_inicial = min(max(self.radio / radio, minimo), maximo)
+            self._cambio.start()
         self.radio = radio
         self.setAccessibleName(self.descripcion_accesible())
         self.update()
@@ -192,6 +208,17 @@ class GraficaCurva3D(QWidget):
         self._acimut = self._acimut_base + math.radians(GRADOS_POR_SEGUNDO * segundos)
         self.update()
 
+    def _tamano_actual(self):
+        """Tamaño de la esfera durante la transición (1 = normal)."""
+        if not self._cambio.isValid():
+            return 1.0
+        avance = self._cambio.elapsed() / DURACION_CAMBIO_MS
+        if avance >= 1:
+            self._cambio.invalidate()
+            return 1.0
+        suave = 1 - (1 - avance) ** 3  # empieza rápido y frena al final
+        return self._tamano_inicial + (1 - self._tamano_inicial) * suave
+
     # --- Dibujo --------------------------------------------------------
     def paintEvent(self, _evento):
         pintor = QPainter(self)
@@ -208,11 +235,20 @@ class GraficaCurva3D(QWidget):
         centro = QPointF(ancho / 2, alto / 2 + 0.03 * lado)
         grosor = lado / 600  # los grosores crecen con el tamaño (exportación)
 
-        def a_pantalla(puntos):
-            h, v, d = girar(puntos, self._acimut)
-            return centro.x() + escala * h, centro.y() - escala * v, d >= 0
+        tamano = 1.0 if exportando else self._tamano_actual()
 
-        self._pintar_ejes(pintor, a_pantalla, colores, grosor, lado, delante=False)
+        def proyectar(puntos, factor):
+            h, v, d = girar(puntos, self._acimut)
+            return centro.x() + factor * h, centro.y() - factor * v, d >= 0
+
+        # La esfera y la curva usan el tamaño de la transición; los ejes no
+        def a_pantalla(puntos):
+            return proyectar(puntos, escala * tamano)
+
+        def a_ejes(puntos):
+            return proyectar(puntos, escala)
+
+        self._pintar_ejes(pintor, a_ejes, colores, grosor, lado, delante=False)
         caminos_malla = self._caminos(self._malla, a_pantalla)
         caminos_curva = self._caminos([self._curva], a_pantalla)
 
@@ -225,13 +261,14 @@ class GraficaCurva3D(QWidget):
         )
 
         # 2. La esfera como un vidrio: degradado radial y contorno
-        self._pintar_esfera(pintor, centro, escala, colores, grosor)
+        self._pintar_esfera(pintor, centro, escala * tamano, colores, grosor)
 
         # 3. Lo que está delante: malla más marcada y la curva con brillo
         self._trazar(pintor, caminos_malla[True], colores["esfera"], 0.50, 1.0 * grosor)
         self._trazar_con_brillo(pintor, caminos_curva[True], colores, grosor, ancho)
         self._pintar_punto_doble(pintor, a_pantalla, colores, grosor, lado)
-        self._pintar_ejes(pintor, a_pantalla, colores, grosor, lado, delante=True)
+        self._pintar_ejes(pintor, a_ejes, colores, grosor, lado, delante=True)
+        self._pintar_marcas(pintor, a_ejes, colores, grosor, lado)
         self._pintar_rotulos(pintor, ancho, alto, lado, colores, exportando)
 
     @staticmethod
@@ -323,6 +360,26 @@ class GraficaCurva3D(QWidget):
                 pintor.setFont(self._fuente(FAMILIAS_MONO, 0.03 * lado, negrita=True))
                 rotulo = QPointF(h[1], v[1]) + QPointF(6 * grosor, -6 * grosor)
                 pintor.drawText(rotulo, nombre)
+
+    def _pintar_marcas(self, pintor, a_ejes, colores, grosor, lado):
+        """Números en cm sobre cada eje: -R, -R/2, R/2 y R."""
+        pintor.setFont(self._fuente(FAMILIAS_MONO, 0.021 * lado))
+        for indice in range(3):
+            puntos = np.zeros((3, len(MARCAS)))
+            puntos[indice] = MARCAS
+            h, v, delante = a_ejes(puntos)
+            for k, posicion in enumerate(MARCAS):
+                if indice == 0 and posicion == 1.0:
+                    continue  # ahí está el punto doble, que ya tiene su rótulo
+                color = QColor(colores["texto_sec"])
+                color.setAlphaF(0.9 if delante[k] else 0.45)
+                punto = QPointF(h[k], v[k])
+                pintor.setPen(Qt.PenStyle.NoPen)
+                pintor.setBrush(color)
+                pintor.drawEllipse(punto, 1.8 * grosor, 1.8 * grosor)
+                pintor.setPen(color)
+                texto = formatear_radio(posicion * self.radio)
+                pintor.drawText(punto + QPointF(5 * grosor, 13 * grosor), texto)
 
     def _pintar_rotulos(self, pintor, ancho, alto, lado, colores, exportando):
         radio = f"R = {formatear_radio(self.radio)} cm"
