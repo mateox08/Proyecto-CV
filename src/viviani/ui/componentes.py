@@ -83,11 +83,30 @@ class FondoVentana(QWidget):
     guarda como imagen, así redibujarlo no cuesta casi nada."""
 
     LADO_REJILLA = 36
+    RADIO_LUZ = 200  # px: tamaño del círculo de luz que sigue al cursor
 
     def __init__(self, colores):
         super().__init__()
         self.colores = colores
         self._imagen = None
+        self._luz = None  # posición del cursor (None si está fuera)
+
+    def mover_luz(self, posicion):
+        """Mueve la luz al punto `posicion` (coordenadas de este widget).
+
+        Solo se repintan dos círculos: donde estaba la luz y donde está
+        ahora. Así el costo no depende del tamaño de la ventana.
+        """
+        if posicion is not None and not self.rect().contains(posicion):
+            posicion = None
+        anterior = self._luz
+        if posicion == anterior:
+            return
+        self._luz = posicion
+        for punto in (anterior, posicion):
+            if punto is not None:
+                r = self.RADIO_LUZ
+                self.update(punto.x() - r, punto.y() - r, 2 * r, 2 * r)
 
     def resizeEvent(self, evento):
         self._imagen = None  # cambió el tamaño: hay que volver a dibujarlo
@@ -98,6 +117,36 @@ class FondoVentana(QWidget):
             self._imagen = self._dibujar_fondo()
         pintor = QPainter(self)
         pintor.drawPixmap(evento.rect(), self._imagen, evento.rect())
+        if self._luz is not None:
+            self._dibujar_luz(pintor)
+
+    def _dibujar_luz(self, pintor):
+        """Un resplandor suave y la rejilla más marcada cerca del cursor."""
+        c = self.colores
+        centro = QPointF(self._luz)
+        r = self.RADIO_LUZ
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        resplandor = QRadialGradient(centro, r)
+        resplandor.setColorAt(0, con_alfa("#FFFFFF", 0.55))
+        resplandor.setColorAt(0.5, con_alfa(c["brillo"], 0.10))
+        resplandor.setColorAt(1, con_alfa(c["brillo"], 0.0))
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(resplandor)
+        pintor.drawEllipse(centro, r, r)
+
+        # Las líneas de la rejilla se encienden: el color de la pluma es un
+        # degradado que se apaga con la distancia al cursor
+        lineas = QRadialGradient(centro, r * 0.8)
+        lineas.setColorAt(0, con_alfa(c["brillo"], 0.55))
+        lineas.setColorAt(1, con_alfa(c["brillo"], 0.0))
+        pintor.setPen(QPen(lineas, 1))
+        lado = self.LADO_REJILLA
+        x0, y0 = int(centro.x() - r), int(centro.y() - r)
+        for x in range(max(0, x0 - x0 % lado), int(centro.x() + r), lado):
+            pintor.drawLine(x, y0, x, y0 + 2 * r)
+        for y in range(max(0, y0 - y0 % lado), int(centro.y() + r), lado):
+            pintor.drawLine(x0, y, x0 + 2 * r, y)
 
     def _dibujar_fondo(self):
         c = self.colores

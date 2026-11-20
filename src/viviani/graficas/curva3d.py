@@ -302,7 +302,7 @@ class GraficaCurva3D(QWidget):
         texto.setAlphaF(opacidad)
         pintor.setPen(texto)
         pintor.setFont(self._fuente(FAMILIAS_MONO, 0.024 * lado))
-        pintor.drawText(punto + QPointF(10 * grosor, 24 * grosor), "(R, 0, 0)")
+        pintor.drawText(punto + QPointF(14 * grosor, 26 * grosor), "(R, 0, 0)")
 
     def _pintar_ejes(self, pintor, a_pantalla, colores, grosor, lado, delante):
         """Ejes X, Y, Z. Primero la parte de adentro (bajo la esfera), al
@@ -320,7 +320,7 @@ class GraficaCurva3D(QWidget):
             pintor.drawLine(QPointF(h[0], v[0]), QPointF(h[1], v[1]))
             if delante:
                 pintor.setFont(self._fuente(FAMILIAS_MONO, 0.03 * lado, negrita=True))
-                rotulo = QPointF(h[1], v[1]) + QPointF(6 * grosor, 4 * grosor)
+                rotulo = QPointF(h[1], v[1]) + QPointF(6 * grosor, -6 * grosor)
                 pintor.drawText(rotulo, nombre)
 
     def _pintar_rotulos(self, pintor, ancho, alto, lado, colores, exportando):

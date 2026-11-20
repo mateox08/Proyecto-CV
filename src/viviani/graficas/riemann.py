@@ -26,7 +26,6 @@ DURACION_TOTAL_MS = 1500  # todos los rectángulos
 DURACION_BARRA_MS = 250  # lo que tarda en crecer cada rectángulo
 DURACION_FUNDIDO_MS = 150  # con "reducir movimiento"
 ALFA_RELLENO = 0.22
-FUNCION_TEXTO = r"$f(t) = R\sqrt{1 + \cos^2 t}$"
 
 
 def funcion(t, radio):
@@ -200,26 +199,9 @@ class GraficaRiemann(LienzoBase):
         if self.resultado.agrupado:
             # Con n > 120 cada barra agrupa varios subintervalos (ver calculo.py)
             barras = len(self.resultado.barras_altura)
-            texto += "\n" + f"{barras} barras agrupadas"
-        # Abajo al centro, dentro de los rectángulos: ahí nunca llega la curva
-        eje.text(
-            0.5,
-            0.04,
-            texto,
-            transform=eje.transAxes,
-            ha="center",
-            va="bottom",
-            multialignment="center",
-            fontsize=estilo.leyenda,
-            color=colores["texto"],
-            zorder=5,
-            bbox={
-                "facecolor": colores["superficie"],
-                "edgecolor": "none",
-                "alpha": 0.85,
-                "pad": 2,
-            },
-        )
+            texto += f"  ·  {barras} barras agrupadas"
+        # Subtítulo, debajo del título: así no tapa los rectángulos
+        eje.set_title(texto, fontsize=estilo.leyenda, color=colores["texto_sec"])
 
     def _poner_leyenda(self, fig, colores, estilo, con_puntos):
         azul = colores["serie_azul"]
@@ -227,7 +209,7 @@ class GraficaRiemann(LienzoBase):
             Line2D([], [], color=colores["texto"], linewidth=2 * estilo.lineas),
             Patch(facecolor=to_rgba(azul, ALFA_RELLENO), edgecolor=azul),
         ]
-        rotulos = [FUNCION_TEXTO, "Rectángulos"]
+        rotulos = ["f(t)", "Rectángulos"]
         if con_puntos:
             elementos.append(
                 Line2D(
@@ -247,5 +229,7 @@ class GraficaRiemann(LienzoBase):
             loc="outside lower center",
             ncols=len(elementos),
             frameon=False,
+            columnspacing=1.2,
+            handlelength=1.4,
         )
         poner_leyenda(leyenda, colores)

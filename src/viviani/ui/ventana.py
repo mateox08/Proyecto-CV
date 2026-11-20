@@ -166,8 +166,13 @@ class VentanaPrincipal(QMainWindow):
             self.colores, "Exportar PNG", "image-down", variante="secundario"
         )
         self.boton_exportar.setToolTip("Guardar la curva como imagen PNG (Ctrl+S)")
-        tarjeta.cabecera.addWidget(self.boton_exportar)
         tarjeta.contenido.addWidget(self.grafica_3d, 1)
+        # El botón va abajo: así el título queda a la misma altura que el de
+        # la tarjeta de Riemann
+        pie = QHBoxLayout()
+        pie.addStretch(1)
+        pie.addWidget(self.boton_exportar)
+        tarjeta.contenido.addLayout(pie)
         return tarjeta
 
     def _crear_tarjeta_riemann(self):
@@ -273,9 +278,12 @@ class VentanaPrincipal(QMainWindow):
             self._saltar_animaciones()
 
     def _revisar_cursor(self):
+        fondo = self.centralWidget()
         if not self.isActiveWindow():
+            fondo.mover_luz(None)
             return
         cursor = QCursor.pos()
+        fondo.mover_luz(fondo.mapFromGlobal(cursor))
         for boton in self._botones:
             boton.acercar(cursor)
 
