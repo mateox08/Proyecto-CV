@@ -137,6 +137,8 @@ class GraficaCurva3D(QWidget):
         self._acimut = ACIMUT_INICIAL
         # Transición al cambiar el radio: tamaño de partida y su reloj
         self._tamano_inicial = 1.0
+        self._escena = None  # (centro, escala) del último dibujo
+        self._zona = None  # rectángulo libre donde va la esfera (o None)
         self._cambio = QElapsedTimer()
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         self.setMinimumSize(280, 280)
@@ -165,6 +167,11 @@ class GraficaCurva3D(QWidget):
             self._cambio.start()
         self.radio = radio
         self.setAccessibleName(self.descripcion_accesible())
+        self.update()
+
+    def establecer_zona(self, zona):
+        """Indica el rectángulo libre (sin controles encima) para la esfera."""
+        self._zona = zona
         self.update()
 
     def exportar(self, ruta):
@@ -206,7 +213,23 @@ class GraficaCurva3D(QWidget):
     def _avanzar(self):
         segundos = self._reloj.elapsed() / 1000
         self._acimut = self._acimut_base + math.radians(GRADOS_POR_SEGUNDO * segundos)
-        self.update()
+        self._repintar_escena()
+
+    def _repintar_escena(self):
+        """Pide repintar solo el cuadrado donde está la esfera.
+
+        La gráfica ocupa toda la ventana, pero la escena está en el centro:
+        así no se redibujan, 60 veces por segundo, los controles de los lados.
+        """
+        if self._escena is None:
+            self.update()
+            return
+        centro, escala = self._escena
+        mitad = 1.55 * escala + 40
+        self.update(
+            round(centro.x() - mitad), round(centro.y() - mitad),
+            round(2 * mitad), round(2 * mitad),
+        )  # fmt: skip
 
     def _tamano_actual(self):
         """Tamaño de la esfera durante la transición (1 = normal)."""
@@ -230,9 +253,16 @@ class GraficaCurva3D(QWidget):
         if exportando:  # en pantalla el fondo es transparente: se ve la tarjeta
             pintor.fillRect(QRectF(0, 0, ancho, alto), QColor(colores["superficie"]))
 
-        lado = min(ancho, alto)
-        escala = 0.40 * lado  # radio de la esfera en píxeles
-        centro = QPointF(ancho / 2, alto / 2 + 0.03 * lado)
+        # En pantalla la esfera se centra en la zona libre que indica la
+        # ventana; al exportar, en toda la imagen.
+        zona = QRectF(0, 0, ancho, alto)
+        if not exportando and self._zona is not None:
+            zona = self._zona
+        lado = min(zona.width(), zona.height())
+        escala = 0.36 * lado  # radio de la esfera en píxeles
+        centro = zona.center() + QPointF(0, 0.03 * lado)
+        if not exportando:
+            self._escena = (centro, escala)  # para repintar solo esa zona
         grosor = lado / 600  # los grosores crecen con el tamaño (exportación)
 
         tamano = 1.0 if exportando else self._tamano_actual()
@@ -300,7 +330,7 @@ class GraficaCurva3D(QWidget):
         # Sobre fondo oscuro los halos se SUMAN a lo que hay debajo (modo
         # "Plus"): así brillan como un neón en vez de tapar.
         oscuro = colores["fondo"] != "#FFFFFF"
-        for ancho_pluma, alfa in ((18, 0.13), (8, 0.30), (3.2, 1.0)):
+        for ancho_pluma, alfa in ((14, 0.12), (7, 0.28), (3.0, 1.0)):
             modo = QPainter.CompositionMode
             suma = oscuro and alfa < 1
             pintor.setCompositionMode(modo.CompositionMode_Plus if suma
@@ -406,8 +436,10 @@ class GraficaCurva3D(QWidget):
                 f"Ventana de Viviani sobre la esfera de radio {radio[4:]}",
             )
             return
-        pintor.setFont(self._fuente(FAMILIAS_MONO, 0.026 * lado))
-        pintor.drawText(QPointF(0.03 * ancho, alto - 0.04 * lado), radio)
+        # Debajo de la esfera, a la izquierda del eje Z
+        centro, escala = self._escena
+        pintor.setFont(self._fuente(FAMILIAS_MONO, 0.022 * lado))
+        pintor.drawText(centro + QPointF(-1.05 * escala, 1.12 * escala), radio)
 
     @staticmethod
     def _fuente(familias, pixeles, negrita=False):

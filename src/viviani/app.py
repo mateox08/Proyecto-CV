@@ -50,7 +50,8 @@ def crear_ventana(avisar=None):
     ventana = VentanaPrincipal(
         # Si Windows tiene las animaciones desactivadas, la curva no gira
         grafica_3d=GraficaCurva3D(colores, sistema.reducir_movimiento()),
-        grafica_riemann=GraficaRiemann(colores, sistema.factor_de_texto()),
+        # letra algo menor: la gráfica de Riemann ahora es compacta
+        grafica_riemann=GraficaRiemann(colores, 0.88 * sistema.factor_de_texto()),
         sonidos=Sonidos(activado=True),  # los sonidos siempre están activos
         calcular=calcular,
     )

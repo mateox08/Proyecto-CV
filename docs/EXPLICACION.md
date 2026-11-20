@@ -161,6 +161,7 @@ pasado** y dibuja lo que corresponde a ese instante. Por eso dura lo mismo
 | `iconos.py` | Carga los iconos (Lucide, licencia libre). |
 | `logo.py` | Dibuja el logo (la curva vista de frente, un "8"). Lo usan la pantalla de carga, el encabezado y el icono del `.exe`. |
 | `carga.py` | La pantalla de carga que aparece mientras se preparan numpy y matplotlib. |
+| `creditos.py` | El panel de créditos (integrantes, profesor, herramientas). Los nombres se completan en las listas al inicio del archivo. |
 
 Qt funciona con **señales**: un objeto "avisa" que algo pasó y otro "escucha".
 Por ejemplo, el hilo de cálculo emite la señal `terminado` con el resultado y

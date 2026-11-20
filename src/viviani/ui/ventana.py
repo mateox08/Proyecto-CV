@@ -5,18 +5,17 @@ piezas ya hechas en el constructor (ver app.py) y solo coordina:
 
     escribir R y n -> validar -> calcular en un hilo -> mostrar -> animar
 
-Distribución (sin recuadros: todo flota sobre el fondo de puntos):
+Distribución: la curva 3D ocupa toda la ventana (es la protagonista) y lo
+demás flota encima, a los lados:
 
-    [logo] Ventana de Viviani                         L = 7.640395578 · R
-           PERÍMETRO · SUMA DE RIEMANN
+    [logo] Ventana de Viviani                                [Créditos]
 
-    RADIO R            .-""-.                     PERÍMETRO APROXIMADO
-    ____40______ cm   (  3D  )  girando            305.615823 cm
-    SUBINTERVALOS n    '-..-'                      ───────────────
-    ____10______                                   VALOR DE CONTROL ...
-       ( ∫ )  orbe "Calcular"         [PNG]        ERROR ABSOLUTO   ...
-    ──────────────────────── línea ────────────────────────
-    gráfica de la suma de Riemann, a todo lo ancho
+    RADIO R                 ( esfera 3D )            PERÍMETRO APROXIMADO
+    ____5_______ cm         (  girando  )            38.201978 cm
+    SUBINTERVALOS n         (  grande   )            VALOR DE CONTROL ...
+    ____10______                                     ERROR ...
+       ( orbe Calcular )                             [ suma de Riemann ]
+    [Exportar PNG]                                   [   compacta      ]
 """
 
 from pathlib import Path
@@ -26,6 +25,7 @@ from PySide6.QtGui import QCursor, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -40,9 +40,9 @@ from viviani.ui.componentes import (
     BotonOrbe,
     CampoLinea,
     FondoVentana,
-    Separador,
     fuente,
 )
+from viviani.ui.creditos import PanelCreditos
 from viviani.ui.logo import dibujar_logo
 from viviani.ui.resultado import PanelResultado
 from viviani.ui.trabajador import GestorTareas
@@ -94,42 +94,41 @@ class VentanaPrincipal(QMainWindow):
     def _construir_interfaz(self):
         fondo = FondoVentana(self.colores)
         self.setCentralWidget(fondo)
-        raiz = QVBoxLayout(fondo)
-        raiz.setContentsMargins(40, 22, 40, 14)
-        raiz.setSpacing(10)
+        # Dos capas en la misma celda de la rejilla: abajo, la escena 3D a
+        # pantalla completa (la protagonista); encima, todo lo demás flotando.
+        capas = QGridLayout(fondo)
+        capas.setContentsMargins(0, 0, 0, 0)
+        capas.addWidget(self.grafica_3d, 0, 0)
+        encima = QWidget()
+        capas.addWidget(encima, 0, 0)
 
+        raiz = QVBoxLayout(encima)
+        raiz.setContentsMargins(40, 22, 40, 20)
+        raiz.setSpacing(0)
         raiz.addLayout(self._crear_encabezado())
         cuerpo = QHBoxLayout()
-        cuerpo.setSpacing(28)
         cuerpo.addLayout(self._crear_columna_datos())
-        cuerpo.addLayout(self._crear_centro(), 1)
-        cuerpo.addWidget(self._crear_columna_resultado())
-        raiz.addLayout(cuerpo, 12)
-        raiz.addWidget(Separador())
-        raiz.addWidget(self.grafica_riemann, 7)
+        cuerpo.addStretch(1)  # el centro queda libre para la esfera
+        cuerpo.addLayout(self._crear_columna_resultado())
+        raiz.addLayout(cuerpo, 1)
+
+        self.creditos = PanelCreditos(fondo)
 
     def _crear_encabezado(self):
         titulo = QLabel(TITULO)
         titulo.setFont(fuente(tema.FAMILIAS_TITULO, 22))
-        subtitulo = QLabel("PERÍMETRO  ·  SUMA DE RIEMANN")
-        subtitulo.setFont(fuente(tema.FAMILIAS_MONO, 8.5, espaciado=3))
-        subtitulo.setProperty("rol", "etiqueta")
-        textos = QVBoxLayout()
-        textos.setSpacing(0)
-        textos.addWidget(titulo)
-        textos.addWidget(subtitulo)
 
-        chip = QLabel("L = 4√2 · R · E(½) ≈ 7.640395578 · R")
-        chip.setObjectName("chip")
-        chip.setFont(fuente(tema.FAMILIAS_MONO, 9))
-        chip.setToolTip("Valor de control del perímetro")
+        self.boton_creditos = QPushButton("Créditos")
+        self.boton_creditos.setObjectName("fantasma")
+        self.boton_creditos.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.boton_creditos.setToolTip("Integrantes del grupo y herramientas usadas")
 
         encabezado = QHBoxLayout()
         encabezado.setSpacing(14)
         encabezado.addWidget(Logo())
-        encabezado.addLayout(textos)
+        encabezado.addWidget(titulo)
         encabezado.addStretch(1)
-        encabezado.addWidget(chip, 0, Qt.AlignmentFlag.AlignVCenter)
+        encabezado.addWidget(self.boton_creditos, 0, Qt.AlignmentFlag.AlignVCenter)
         return encabezado
 
     def _crear_columna_datos(self):
@@ -149,18 +148,7 @@ class VentanaPrincipal(QMainWindow):
         self.boton_calcular = BotonOrbe(self.colores, self._quieto)
         self.boton_calcular.setToolTip("Calcular el perímetro (Enter)")
 
-        columna = QVBoxLayout()
-        columna.setSpacing(8)
-        columna.addStretch(1)
-        columna.addWidget(self.bloque_r)
-        columna.addSpacing(6)
-        columna.addWidget(self.bloque_n)
-        columna.addWidget(self.boton_calcular, 0, Qt.AlignmentFlag.AlignHCenter)
-        columna.addStretch(1)
-        return columna
-
-    def _crear_centro(self):
-        self.boton_exportar = QPushButton(" Exportar PNG")
+        self.boton_exportar = QPushButton(" Exportar curva PNG")
         self.boton_exportar.setObjectName("fantasma")
         self.boton_exportar.setIcon(
             iconos.icono("image-down", self.colores["texto_sec"], 16)
@@ -168,35 +156,73 @@ class VentanaPrincipal(QMainWindow):
         self.boton_exportar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.boton_exportar.setToolTip("Guardar la curva 3D como imagen PNG (Ctrl+S)")
 
-        pie = QHBoxLayout()
-        pie.addStretch(1)
-        pie.addWidget(self.boton_exportar)
-        centro = QVBoxLayout()
-        centro.setSpacing(0)
-        centro.addWidget(self.grafica_3d, 1)
-        centro.addLayout(pie)
-        return centro
+        columna = QVBoxLayout()
+        columna.setSpacing(8)
+        columna.addStretch(2)
+        columna.addWidget(self.bloque_r)
+        columna.addSpacing(6)
+        columna.addWidget(self.bloque_n)
+        columna.addWidget(self.boton_calcular, 0, Qt.AlignmentFlag.AlignHCenter)
+        columna.addStretch(3)
+        columna.addWidget(self.boton_exportar, 0, Qt.AlignmentFlag.AlignLeft)
+        return columna
 
     def _crear_columna_resultado(self):
         self.panel_resultado = PanelResultado(self.colores, self._quieto)
         self.panel_resultado.setFixedWidth(360)
-        contenedor = QWidget()
-        diseno = QVBoxLayout(contenedor)
-        diseno.setContentsMargins(0, 0, 0, 0)
-        diseno.addStretch(1)
-        diseno.addWidget(self.panel_resultado)
-        diseno.addStretch(1)
+        # La suma de Riemann va compacta, abajo a la derecha
+        self.grafica_riemann.setFixedSize(520, 300)
+
+        columna = QVBoxLayout()
+        columna.setSpacing(0)
+        columna.addStretch(2)
+        columna.addWidget(self.panel_resultado, 0, Qt.AlignmentFlag.AlignRight)
+        columna.addStretch(1)
+        columna.addWidget(self.grafica_riemann, 0, Qt.AlignmentFlag.AlignRight)
         # Atajos a las etiquetas de resultado (los usan las pruebas)
         pr = self.panel_resultado
         self.etiqueta_perimetro = pr.etiqueta_perimetro
         self.etiqueta_control = pr.etiqueta_control
         self.etiqueta_error_abs = pr.etiqueta_error_abs
         self.etiqueta_error_rel = pr.etiqueta_error_rel
-        return contenedor
+        return columna
+
+    def _actualizar_zona_3d(self):
+        """La esfera se centra en el hueco libre entre las dos columnas."""
+        g = self.grafica_3d
+
+        def en_3d(widget):
+            esquina = g.mapFromGlobal(widget.mapToGlobal(widget.rect().topLeft()))
+            return QRectF(esquina.x(), esquina.y(), widget.width(), widget.height())
+
+        izquierda = max(en_3d(self.bloque_r).right(), en_3d(self.bloque_n).right())
+        derecha = min(en_3d(self.panel_resultado).left(),
+                      en_3d(self.grafica_riemann).left())  # fmt: skip
+        arriba = en_3d(self.boton_creditos).bottom()
+        abajo = g.height() - 20
+        margen = 24
+        g.establecer_zona(
+            QRectF(
+                izquierda + margen,
+                arriba,
+                derecha - izquierda - 2 * margen,
+                abajo - arriba,
+            )  # fmt: skip
+        )
+
+    def resizeEvent(self, evento):
+        super().resizeEvent(evento)
+        # Se espera a que los diseños terminen de acomodarse
+        QTimer.singleShot(0, self._actualizar_zona_3d)
+
+    def showEvent(self, evento):
+        super().showEvent(evento)
+        QTimer.singleShot(0, self._actualizar_zona_3d)
 
     def _conectar(self):
         self.boton_calcular.clicked.connect(self.calcular_ahora)
         self.boton_exportar.clicked.connect(self._exportar_3d)
+        self.boton_creditos.clicked.connect(self.creditos.abrir)
         for caja in (self.campo_radio, self.campo_n):
             caja.returnPressed.connect(self.calcular_ahora)
 
@@ -291,7 +317,9 @@ class VentanaPrincipal(QMainWindow):
         self.panel_resultado.saltar_animacion()
 
     def _al_pulsar_escape(self):
-        if self._calculo.en_curso():
+        if self.creditos.isVisible():
+            self.creditos.cerrar()
+        elif self._calculo.en_curso():
             self._calculo.cancelar()
         else:
             self._saltar_animaciones()
