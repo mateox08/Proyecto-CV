@@ -6,7 +6,7 @@ from viviani.validacion import validar_radio, validar_subintervalos
 
 MSG_R_VACIO = "Escriba el radio R."
 MSG_R_FINITO = "R debe ser un número finito."
-MSG_R_NUMERO = "Escriba un número, por ejemplo 5 o 7,5."
+MSG_R_NUMERO = "Escriba un número, por ejemplo 5 o 7.5."
 MSG_R_POSITIVO = "R debe ser mayor que cero."
 
 MSG_N_VACIO = "Escriba el número de subintervalos n."

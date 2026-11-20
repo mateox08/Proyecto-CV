@@ -1,4 +1,4 @@
-"""Formato de números para mostrarlos en español (coma decimal).
+"""Formato de números para mostrarlos (punto decimal).
 
 Este módulo no depende de la interfaz: solo convierte números en texto.
 """
@@ -14,8 +14,8 @@ NOMBRES_METODO = {
 
 
 def formatear_decimal(valor, decimales=6):
-    """Número con coma decimal y decimales fijos. Ej.: 38.201673 -> '38,201673'."""
-    return f"{valor:.{decimales}f}".replace(".", ",")
+    """Número con decimales fijos. Ej.: 38.2016729 -> '38.201673'."""
+    return f"{valor:.{decimales}f}"
 
 
 def formatear_entero(n):
@@ -27,8 +27,8 @@ def formatear_cientifico(valor, cifras=4):
     """Número con `cifras` cifras significativas.
 
     Si es muy grande o muy pequeño se escribe en notación científica con
-    superíndices: 0.0003049 -> '3,049 × 10⁻⁴'. Si su exponente está entre
-    -2 y 3 se escribe normal: 0.05 -> '0,05000'. El cero se escribe '0'.
+    superíndices: 0.0003049 -> '3.049 × 10⁻⁴'. Si su exponente está entre
+    -2 y 3 se escribe normal: 0.05 -> '0.05000'. El cero se escribe '0'.
     """
     if valor == 0:
         return "0"
@@ -39,7 +39,7 @@ def formatear_cientifico(valor, cifras=4):
         decimales = max(0, cifras - 1 - exponente)
         return formatear_decimal(valor, decimales)
     exponente_texto = str(exponente).translate(_SUPERINDICES)
-    return f"{mantisa.replace('.', ',')} × 10{exponente_texto}"
+    return f"{mantisa} × 10{exponente_texto}"
 
 
 def formatear_medida(valor):
@@ -50,10 +50,10 @@ def formatear_medida(valor):
 
 
 def formatear_radio(radio):
-    """El radio tal como conviene mostrarlo: sin ceros de más. Ej.: '7,5'."""
+    """El radio tal como conviene mostrarlo: sin ceros de más. Ej.: '7.5'."""
     if radio != 0 and (abs(radio) >= 1e7 or abs(radio) < 1e-3):
         return formatear_cientifico(radio, cifras=4)
-    return f"{radio:.6f}".rstrip("0").rstrip(".").replace(".", ",")
+    return f"{radio:.6f}".rstrip("0").rstrip(".")
 
 
 def nombre_metodo(metodo):

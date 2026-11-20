@@ -26,10 +26,6 @@ TAMANO_BLOQUE = 1_000_000  # subintervalos por bloque (progreso y cancelación)
 # 0 -> extremo izquierdo, 1 -> extremo derecho, 0.5 -> punto medio
 DESPLAZAMIENTO = {"izquierda": 0.0, "derecha": 1.0, "punto_medio": 0.5}
 
-# Valores de n de la gráfica de convergencia (DISENO 8.4)
-N_PEQUENOS = list(range(1, 65))
-N_GRANDES = sorted(set(np.rint(np.logspace(np.log10(80), 7, 24)).astype(int).tolist()))
-
 
 class CalculoCancelado(Exception):
     """Se lanza cuando el usuario cancela un cálculo en curso."""
@@ -166,26 +162,3 @@ def calcular(radio, n, metodo="punto_medio", progreso=None, cancelado=None):
         puntos_t=puntos_t,
         agrupado=agrupado,
     )
-
-
-def _errores_relativos(metodo, valores_n, cancelado):
-    """Error relativo (%) con R = 1 para cada n de la lista."""
-    errores = []
-    for n in valores_n:
-        suma, _ = _suma_por_bloques(1.0, n, metodo, cancelado=cancelado)
-        perimetro = suma * (T_FINAL - T_INICIAL) / n
-        errores.append(_error_relativo(perimetro, RAZON_REFERENCIA))
-    return np.array(errores)
-
-
-def datos_convergencia(cancelado=None):
-    """{método: (valores_de_n, error_relativo_en_%)} con R = 1 (DISENO 8.4)."""
-    valores_n = np.array(N_PEQUENOS + N_GRANDES)
-    # Izquierda y derecha dan la misma suma (f es periódica): se calcula una.
-    errores_borde = _errores_relativos("izquierda", valores_n.tolist(), cancelado)
-    errores_medio = _errores_relativos("punto_medio", valores_n.tolist(), cancelado)
-    return {
-        "izquierda": (valores_n, errores_borde),
-        "derecha": (valores_n, errores_borde.copy()),
-        "punto_medio": (valores_n, errores_medio),
-    }

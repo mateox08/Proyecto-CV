@@ -1,8 +1,8 @@
-"""Gráficas de matplotlib incrustables en Qt (curva 3D, Riemann, convergencia)."""
+"""Gráficas de la aplicación: la curva 3D (dibujada con QPainter) y la suma
+de Riemann (matplotlib incrustado en Qt)."""
 
 import logging
 
-from viviani.graficas.convergencia import GraficaConvergencia
 from viviani.graficas.curva3d import GraficaCurva3D
 from viviani.graficas.riemann import GraficaRiemann
 
@@ -10,4 +10,4 @@ from viviani.graficas.riemann import GraficaRiemann
 # matplotlib avisaría en consola sin que importe: se silencia ese aviso.
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 
-__all__ = ["GraficaConvergencia", "GraficaCurva3D", "GraficaRiemann"]
+__all__ = ["GraficaCurva3D", "GraficaRiemann"]

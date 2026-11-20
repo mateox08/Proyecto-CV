@@ -6,7 +6,7 @@ Cada función recibe el texto del campo y devuelve una pareja:
     (None, mensaje)    si no lo es; el mensaje dice cómo corregirlo
 
 Los mensajes y el orden en que se revisan las condiciones salen de
-docs/DISENO.md, sección 4.3.
+docs/DISENO.md.
 
 Decisión sobre los dígitos Unicode: Python acepta dígitos de otros alfabetos
 (por ejemplo "１２" de ancho completo) como si fueran números. Aquí NO se
@@ -56,7 +56,7 @@ def validar_radio(texto):
     # Se exige la forma exacta del número para rechazar lo que float()
     # tolera pero no es lo que se espera ("1_0", "１２", espacios internos).
     if not _NUMERO_REAL.fullmatch(texto):
-        return None, "Escriba un número, por ejemplo 5 o 7,5."
+        return None, "Escriba un número, por ejemplo 5 o 7.5."
 
     radio = float(texto)
     if math.isinf(radio):  # por ejemplo "1e999"

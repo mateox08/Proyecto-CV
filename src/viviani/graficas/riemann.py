@@ -12,7 +12,6 @@ from viviani.formato import (
     formatear_decimal,
     formatear_entero,
     formatear_radio,
-    nombre_metodo,
 )
 from viviani.graficas.animacion import salida_suave
 from viviani.graficas.estilo import (
@@ -123,11 +122,10 @@ class GraficaRiemann(LienzoBase):
         r = self.resultado
         if r is None:
             return f"f(t) = R√(1 + cos²t) con R = {formatear_radio(self.radio)} cm"
-        n, metodo = formatear_entero(r.n), nombre_metodo(r.metodo)
-        return f"Suma de Riemann con n = {n} ({metodo})"
+        return f"Suma de Riemann con n = {formatear_entero(r.n)}"
 
     def nombre_sugerido(self):
-        radio = formatear_radio(self.radio).replace(",", "-")
+        radio = formatear_radio(self.radio).replace(".", "-")
         if self.resultado is None:
             return f"riemann_R{radio}cm_funcion.png"
         r = self.resultado
@@ -141,7 +139,7 @@ class GraficaRiemann(LienzoBase):
                 f"{formatear_radio(self.radio)} centímetros. Aún no se ha calculado."
             )
         return (
-            f"Suma de Riemann con {r.n} rectángulos, método {nombre_metodo(r.metodo)}. "
+            f"Suma de Riemann con {r.n} rectángulos (punto medio). "
             f"Suma igual a {formatear_decimal(r.perimetro)} centímetros."
         )
 
@@ -199,6 +197,10 @@ class GraficaRiemann(LienzoBase):
 
     def _poner_anotacion(self, eje, colores, estilo):
         texto = f"Σ f(tᵢ)·Δt = {formatear_decimal(self.resultado.perimetro)} cm"
+        if self.resultado.agrupado:
+            # Con n > 120 cada barra agrupa varios subintervalos (ver calculo.py)
+            barras = len(self.resultado.barras_altura)
+            texto += "\n" + f"{barras} barras agrupadas"
         # Abajo al centro, dentro de los rectángulos: ahí nunca llega la curva
         eje.text(
             0.5,
@@ -207,6 +209,7 @@ class GraficaRiemann(LienzoBase):
             transform=eje.transAxes,
             ha="center",
             va="bottom",
+            multialignment="center",
             fontsize=estilo.leyenda,
             color=colores["texto"],
             zorder=5,

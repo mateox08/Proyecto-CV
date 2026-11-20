@@ -11,7 +11,6 @@ from viviani.calculo import (
     MAX_BARRAS,
     CalculoCancelado,
     calcular,
-    datos_convergencia,
 )
 
 METODOS = ("izquierda", "derecha", "punto_medio")
@@ -128,32 +127,6 @@ class PruebasRendimiento(unittest.TestCase):
         print(f"\n  n = 10 000 000: {segundos:.2f} s")
         self.assertLess(r.error_relativo, 1e-10)
         self.assertLess(segundos, 20)
-
-
-class PruebasConvergencia(unittest.TestCase):
-    def test_forma_de_los_datos(self):
-        inicio = time.perf_counter()
-        datos = datos_convergencia()
-        segundos = time.perf_counter() - inicio
-        print(f"\n  datos_convergencia: {segundos:.2f} s")
-        self.assertEqual(set(datos), set(METODOS))
-        for valores_n, errores in datos.values():
-            self.assertEqual(len(valores_n), len(errores))
-            self.assertEqual(list(valores_n[:64]), list(range(1, 65)))
-            self.assertEqual(valores_n[-1], 10_000_000)
-            self.assertEqual(valores_n[64], 80)
-            self.assertTrue(np.all(np.diff(valores_n) > 0))
-        np.testing.assert_array_equal(datos["izquierda"][1], datos["derecha"][1])
-
-    def test_el_error_cae_rapido_con_punto_medio(self):
-        valores_n, errores = datos_convergencia()["punto_medio"]
-        error_en = dict(zip(valores_n.tolist(), errores.tolist(), strict=True))
-        self.assertLess(error_en[10], 1e-3)
-        self.assertLess(error_en[20], 1e-7)
-
-    def test_cancelacion(self):
-        with self.assertRaises(CalculoCancelado):
-            datos_convergencia(cancelado=lambda: True)
 
 
 if __name__ == "__main__":

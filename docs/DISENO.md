@@ -1,5 +1,13 @@
 # Especificación de diseño: Perímetro de la Ventana de Viviani
 
+> **Nota (2026-11-19):** esta especificación describe el primer diseño. El
+> diseño actual la reemplaza en estos puntos: tema claro único inspirado en
+> tarjetas de vidrio con brillo al pasar el mouse; sin gráfica de convergencia;
+> sin selector de método (siempre punto medio); sin interruptor de sonido
+> (siempre activo); sin textos de ayuda bajo los campos; la curva 3D gira sola
+> (dibujada con QPainter) y no se arrastra; números con punto decimal. Los
+> colores y fuentes vigentes están en `src/viviani/tema.py`.
+
 Documento para implementar la interfaz en paralelo. Stack: PySide6-Essentials + matplotlib + numpy + `winsound` (ver `docs/decisiones.md`).
 
 Unidades: **DIP** = píxel independiente del dispositivo (píxel lógico de Qt). A 100 % de escala, 1 DIP = 1 px; a 125 %, 1 DIP = 1,25 px. **pt** = punto tipográfico (1 pt = 1,333 DIP a 96 ppp).

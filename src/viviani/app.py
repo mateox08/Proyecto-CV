@@ -14,47 +14,28 @@ import sys
 
 import matplotlib
 
-matplotlib.use("QtAgg")  # las gráficas se dibujan dentro de la ventana Qt
+matplotlib.use("QtAgg")  # la gráfica de Riemann se dibuja dentro de la ventana
 
-from PySide6.QtCore import QSettings, Qt  # noqa: E402
-from PySide6.QtGui import QFont, QGuiApplication  # noqa: E402
+from PySide6.QtGui import QFont  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from viviani import NOMBRE_APP, tema  # noqa: E402
-from viviani.calculo import calcular, datos_convergencia  # noqa: E402
-from viviani.graficas import (  # noqa: E402
-    GraficaConvergencia,
-    GraficaCurva3D,
-    GraficaRiemann,
-)
+from viviani.calculo import calcular  # noqa: E402
+from viviani.graficas import GraficaCurva3D, GraficaRiemann  # noqa: E402
 from viviani.sonido import Sonidos  # noqa: E402
 from viviani.ui import sistema  # noqa: E402
 from viviani.ui.ventana import VentanaPrincipal  # noqa: E402
 
 
-def crear_ventana(ajustes=None):
+def crear_ventana():
     """Construye la ventana principal con todas sus piezas ya conectadas."""
-    if ajustes is None:
-        ajustes = QSettings("ESPOL", "PerimetroViviani")
-
-    # ¿Windows está en modo oscuro? ¿El usuario pidió texto más grande?
-    estilo = QGuiApplication.styleHints()
-    oscuro = estilo.colorScheme() == Qt.ColorScheme.Dark
-    colores = tema.paleta(oscuro)
-    escala = sistema.factor_de_texto()
-
-    # La preferencia de sonido se recuerda entre una ejecución y otra.
-    sonido_activado = ajustes.value("sonido/activado", True, type=bool)
-    sonidos = Sonidos(activado=sonido_activado)
-
+    colores = tema.paleta()
     return VentanaPrincipal(
-        grafica_3d=GraficaCurva3D(colores, escala),
-        grafica_riemann=GraficaRiemann(colores, escala),
-        grafica_convergencia=GraficaConvergencia(colores, escala),
-        sonidos=sonidos,
+        # Si Windows tiene las animaciones desactivadas, la curva no gira
+        grafica_3d=GraficaCurva3D(colores, sistema.reducir_movimiento()),
+        grafica_riemann=GraficaRiemann(colores, sistema.factor_de_texto()),
+        sonidos=Sonidos(activado=True),  # los sonidos siempre están activos
         calcular=calcular,
-        datos_convergencia=datos_convergencia,
-        ajustes=ajustes,
     )
 
 
@@ -63,7 +44,7 @@ def main():
     app.setApplicationName(NOMBRE_APP)
     app.setOrganizationName("ESPOL")
 
-    # Fuente del sistema (Windows 11) con respaldos; el tamaño base es 10,5 pt.
+    # Fuente del sistema (Windows 11), 10,5 pt por el factor de texto
     fuente = QFont()
     fuente.setFamilies(tema.FAMILIAS_INTERFAZ)
     fuente.setPointSizeF(10.5 * sistema.factor_de_texto())

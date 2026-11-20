@@ -35,10 +35,10 @@ viviani_app.py              Lanzador de la ventana (4 líneas útiles)
 src/viviani/
   calculo.py       La misma suma, por bloques y con numpy (rápida y cancelable)
   validacion.py    Revisa lo que el usuario escribe en R y n
-  formato.py       Escribe los números con coma decimal
-  tema.py          Colores del modo claro y oscuro
+  formato.py       Escribe los números con punto decimal
+  tema.py          Colores y fuentes de la interfaz
   sonido.py        Fabrica y reproduce los tres sonidos
-  graficas/        Las tres gráficas
+  graficas/        Las dos gráficas (curva 3D y suma de Riemann)
   ui/              La ventana y sus controles
   app.py           Une todas las piezas
 
@@ -55,9 +55,9 @@ separado.
 ## 4. Qué pasa cuando se presiona Enter
 
 1. **`ui/ventana.py`** toma el texto de los dos campos.
-2. **`validacion.py`** lo revisa. `validar_radio("7,5")` devuelve
+2. **`validacion.py`** lo revisa. `validar_radio("7.5")` devuelve
    `(7.5, "")`; `validar_radio("abc")` devuelve
-   `(None, "Escriba un número, por ejemplo 5 o 7,5.")`. Si hay un mensaje, se
+   `(None, "Escriba un número, por ejemplo 5 o 7.5.")`. Si hay un mensaje, se
    muestra bajo el campo y no se calcula.
 3. **`ui/trabajador.py`** lanza el cálculo en un **hilo aparte**. Un hilo es
    una segunda "línea de ejecución": mientras ella suma, la ventana sigue
@@ -66,8 +66,8 @@ separado.
 4. **`calculo.py`** hace la suma y devuelve un `Resultado` (perímetro, valor
    de control, errores y los rectángulos para dibujar).
 5. **`ui/resultado.py`** escribe los números con **`formato.py`**.
-6. **`graficas/`** dibuja: la curva 3D, los rectángulos animados y el punto
-   actual en la gráfica de convergencia.
+6. **`graficas/`** dibuja los rectángulos animados y actualiza el radio en la
+   curva 3D (que gira sola todo el tiempo).
 7. **`sonido.py`** hace sonar el aviso de "resultado listo".
 
 ## 5. Las piezas, una por una
@@ -106,17 +106,18 @@ es exactamente la suma calculada. La ventana lo avisa con un texto.
 Dos funciones, `validar_radio` y `validar_subintervalos`. Devuelven siempre
 una pareja `(valor, mensaje)`. Casos que cubren: campo vacío, letras, `nan`,
 `inf`, cero, negativos, decimales en n (`10.5`), miles con punto (`1.000`),
-n mayor que 10 000 000. Aceptan coma o punto decimal en R.
+n mayor que 10 000 000. En R se acepta punto o coma al escribir; los
+resultados se muestran siempre con punto decimal.
 
 ### 5.4 `formato.py`
 
-`formatear_decimal(38.201673)` → `38,201673`.
-`formatear_cientifico(0.0003049)` → `3,049 × 10⁻⁴`.
+`formatear_decimal(38.2016729)` → `38.201673`.
+`formatear_cientifico(0.0003049)` → `3.049 × 10⁻⁴`.
 `formatear_entero(10000000)` → `10 000 000`.
 
 ### 5.5 `tema.py`
 
-Una tabla con cada color en sus dos versiones (claro y oscuro) y la función
+Una tabla con cada color (un solo tema, claro), las fuentes y la función
 `razon_de_contraste`, que aplica la fórmula de accesibilidad WCAG. Una prueba
 automática comprueba que todo texto tenga contraste suficiente (4,5 a 1).
 
@@ -132,10 +133,9 @@ un hilo propio para no detener la ventana.
 
 | Archivo | Qué dibuja |
 |---|---|
-| `curva3d.py` | La esfera translúcida, la curva y el punto doble (R, 0, 0). Se rota con el mouse o con las flechas. |
+| `curva3d.py` | La esfera translúcida, la curva y el punto doble (R, 0, 0), girando sola. Se dibuja con QPainter, no con matplotlib (ver abajo). |
 | `riemann.py` | f(t) y los rectángulos, que aparecen de izquierda a derecha. |
-| `convergencia.py` | El error relativo frente a n, en escala logarítmica, con el cálculo actual resaltado. |
-| `lienzo.py` | Lo que las tres comparten: cambiar de tema y exportar a PNG. |
+| `lienzo.py` | Base de la gráfica de Riemann: dibujo y animación. |
 | `animacion.py` | El reloj de la animación. |
 | `estilo.py` | Tamaños de letra y grosores para pantalla y para exportar. |
 
@@ -151,7 +151,7 @@ pasado** y dibuja lo que corresponde a ese instante. Por eso dura lo mismo
 | Archivo | Qué contiene |
 |---|---|
 | `ventana.py` | La ventana principal: arma las tarjetas y responde a los eventos. |
-| `componentes.py` | Controles reutilizables: campo con mensaje, interruptor, selector de método. |
+| `componentes.py` | Piezas visuales: fondo cuadriculado, tarjetas que se iluminan, botones que brillan al acercar el cursor, campo con mensaje de error. |
 | `resultado.py` | La tarjeta que muestra los cuatro valores. |
 | `estilos.py` | Convierte la paleta de `tema.py` en la hoja de estilos de Qt. |
 | `trabajador.py` | El hilo de cálculo y su cancelación. |
@@ -177,8 +177,27 @@ f(t₁), …, f(tₙ); solo cambian el primero y el último, que valen igual.
 periódica, y en ese caso la suma de Riemann con puntos equiespaciados converge
 muchísimo más rápido de lo normal: con n ≈ 40 el error ya es del tamaño del
 redondeo del computador (unas 16 cifras). A partir de ahí aumentar n no
-mejora nada; la gráfica de convergencia lo muestra con la línea "Límite de
-precisión del computador".
+mejora nada: por eso el error absoluto llega a mostrarse como 0 o como
+números del orden de 10⁻¹⁵.
+
+**¿Cómo se dibuja la curva 3D que gira?** En cada cuadro (unas 60 veces por
+segundo) `curva3d.py` hace tres cosas con cada punto (x, y, z) de la curva y de
+la esfera:
+
+1. Lo gira un ángulo φ alrededor del eje Z (matriz de rotación):
+   x₁ = x cos φ − y sen φ,  y₁ = x sen φ + y cos φ.
+2. Inclina la vista un ángulo fijo hacia la cámara y se queda con dos
+   coordenadas para la pantalla (proyección ortogonal).
+3. Usa la tercera coordenada, la profundidad, para saber si el punto está
+   delante o detrás de la esfera: lo de atrás se dibuja tenue.
+
+El ángulo φ sale del tiempo transcurrido, así que gira a la misma velocidad
+en cualquier computador. Si Windows tiene las animaciones desactivadas, la
+curva se queda quieta.
+
+**¿Por qué solo punto medio?** El núcleo acepta izquierda, derecha y punto
+medio, pero la ventana usa siempre punto medio: en esta curva los tres dan
+prácticamente lo mismo (izquierda y derecha, exactamente lo mismo).
 
 ## 7. Cómo se comprueba que funciona
 

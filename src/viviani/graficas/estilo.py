@@ -70,7 +70,7 @@ def rc_de(colores, estilo):
 
 
 def formatear_marca(valor, _posicion=None):
-    """Texto de una marca de eje con coma decimal (7.5 -> '7,5')."""
+    """Texto de una marca de eje sin ceros de más (7.50 -> '7.5')."""
     if valor == 0:
         return "0"
     return formatear_radio(valor)

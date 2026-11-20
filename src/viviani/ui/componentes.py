@@ -1,18 +1,29 @@
-"""Piezas reutilizables de la interfaz: tarjetas, campos, botones, interruptor.
+"""Piezas visuales reutilizables de la ventana.
 
-Cada pieza es un widget de Qt con un `objectName` o una propiedad (`rol`,
-`error`, `enfocado`...) que la hoja de estilos de estilos.py usa para
-pintarla. Los colores concretos nunca se escriben aquí: o los pone el QSS, o
-llegan en el diccionario `colores` de viviani.tema.paleta().
+FondoVentana     fondo degradado con una rejilla tenue (se dibuja una vez)
+Tarjeta          panel blanco con esquinas redondeadas que se ilumina
+                 cuando el mouse pasa por encima
+BotonBrillante   botón en forma de píldora que brilla más cuanto más
+                 cerca está el cursor
+CampoNumerico    etiqueta + caja de texto + mensaje de error
 """
 
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPen
+import math
+
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QVariantAnimation
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
-    QAbstractButton,
-    QButtonGroup,
     QFrame,
-    QGridLayout,
+    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -22,494 +33,393 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from viviani import tema
 from viviani.ui import iconos
 
-SANGRIA = 4  # los textos se corren 4 DIP para alinearse con los controles
-RETARDO_MENSAJE_MS = 600  # espera sin escribir antes de mostrar un error
-
-# Razones de foco que son "navegación con teclado": ahí sí se ve el anillo.
-_FOCO_POR_TECLADO = (
-    Qt.FocusReason.TabFocusReason,
-    Qt.FocusReason.BacktabFocusReason,
-    Qt.FocusReason.ShortcutFocusReason,
-)
+DURACION_BRILLO_MS = 220  # encender/apagar el brillo de una tarjeta
+DISTANCIA_BRILLO = 120  # px: desde aquí el botón empieza a brillar
 
 
-def repulir(widget):
-    """Obliga a Qt a volver a aplicar el QSS tras cambiar una propiedad."""
-    widget.style().unpolish(widget)
-    widget.style().polish(widget)
-    widget.update()
+def mezclar(color_a, color_b, proporcion):
+    """Color intermedio entre a (proporcion 0) y b (proporcion 1)."""
+    a, b = QColor(color_a), QColor(color_b)
+    return QColor(
+        round(a.red() + (b.red() - a.red()) * proporcion),
+        round(a.green() + (b.green() - a.green()) * proporcion),
+        round(a.blue() + (b.blue() - a.blue()) * proporcion),
+    )
 
 
-def etiqueta(texto, rol, sangria=True, palabras=False):
-    """Un QLabel con su rol tipográfico (ver estilos.py)."""
-    texto_etiqueta = QLabel(texto)
-    texto_etiqueta.setProperty("rol", rol)
-    texto_etiqueta.setWordWrap(palabras)
-    if sangria:
-        texto_etiqueta.setContentsMargins(SANGRIA, 0, SANGRIA, 0)
-    return texto_etiqueta
+def con_alfa(color, alfa):
+    tono = QColor(color)
+    tono.setAlphaF(max(0.0, min(1.0, alfa)))
+    return tono
+
+
+def fuente(familias, puntos, peso=QFont.Weight.Normal, espaciado=0.0):
+    """Crea una fuente. `espaciado` separa las letras (en píxeles)."""
+    resultado = QFont()
+    resultado.setFamilies(familias)
+    resultado.setPointSizeF(puntos)
+    resultado.setWeight(peso)
+    if espaciado:
+        resultado.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, espaciado)
+    return resultado
+
+
+def etiqueta_pequena(texto):
+    """Etiqueta en mayúsculas, monoespaciada y con letras separadas."""
+    rotulo = QLabel(texto.upper())
+    rotulo.setFont(fuente(tema.FAMILIAS_MONO, 8.5, espaciado=1.8))
+    rotulo.setProperty("rol", "etiqueta")
+    return rotulo
 
 
 # ---------------------------------------------------------------------------
-# Anillo de foco
+# Fondo
 # ---------------------------------------------------------------------------
-class ConAnillo(QFrame):
-    """Marco que dibuja el anillo de foco alrededor de otro widget.
+class FondoVentana(QWidget):
+    """Fondo de toda la ventana. Se dibuja una sola vez por tamaño y se
+    guarda como imagen, así redibujarlo no cuesta casi nada."""
 
-    El anillo se enciende cuando `vigilar` (por omisión, el propio contenido)
-    recibe el foco. Con `solo_teclado=True` los clics del mouse no lo
-    muestran (los botones pueden ocultarlo tras un clic, DISENO 5.3).
-    """
+    LADO_REJILLA = 36
 
-    def __init__(self, contenido, vigilar=None, tipo="control", solo_teclado=False):
+    def __init__(self, colores):
         super().__init__()
-        self.setObjectName("anillo")
-        self.setProperty("tipo", tipo)
-        self.setProperty("enfocado", False)
-        self._solo_teclado = solo_teclado
-        self.contenido = contenido
-
-        diseno = QVBoxLayout(self)
-        diseno.setContentsMargins(0, 0, 0, 0)
-        diseno.addWidget(contenido)
-
-        self._vigilado = vigilar if vigilar is not None else contenido
-        self._vigilado.installEventFilter(self)
-
-    def eventFilter(self, objeto, evento):
-        if objeto is self._vigilado:
-            if evento.type() == QEvent.Type.FocusIn:
-                if not self._solo_teclado or evento.reason() in _FOCO_POR_TECLADO:
-                    self._encender(True)
-            elif evento.type() == QEvent.Type.FocusOut:
-                self._encender(False)
-        return False
-
-    def _encender(self, encendido):
-        self.setProperty("enfocado", encendido)
-        repulir(self)
-
-
-# ---------------------------------------------------------------------------
-# Tarjetas
-# ---------------------------------------------------------------------------
-class Tarjeta(QFrame):
-    """Caja con fondo `superficie`, esquinas redondeadas y un encabezado."""
-
-    def __init__(self, titulo):
-        super().__init__()
-        self.setObjectName("tarjeta")
-        self.diseno = QVBoxLayout(self)
-        # 16 DIP a los lados; 10 arriba y abajo para que las tres tarjetas de la
-        # izquierda quepan sin desplazamiento en la ventana maximizada de
-        # 1536 x 793 DIP (1920 x 1080 al 125 % con barra de tareas).
-        self.diseno.setContentsMargins(16, 10, 16, 10)
-        self.diseno.setSpacing(4)
-        self.encabezado = etiqueta(titulo, "encabezado")
-        self.diseno.addWidget(self.encabezado)
-
-
-class BotonSecundario(QPushButton):
-    """Botón con contorno e icono Lucide; puede quedar solo con el icono."""
-
-    def __init__(self, texto, nombre_icono, tooltip, tamano_icono=16):
-        super().__init__(texto)
-        self._texto = texto
-        self._nombre_icono = nombre_icono
-        self._tamano_icono = tamano_icono
-        self._color = "#000000"
-        self._tooltip = tooltip
-        self.setObjectName("secundario")
-        self.setAccessibleName(texto)
-        self.setToolTip(tooltip)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setIconSize(QSize(tamano_icono, tamano_icono))
-
-    def compactar(self, compacto):
-        """Solo icono (32 x 32) o icono con texto; el texto pasa al tooltip."""
-        self.setText("" if compacto else self._texto)
-        self.setObjectName("icono_sec" if compacto else "secundario")
-        self.setToolTip(
-            f"{self._texto}. {self._tooltip}" if compacto else self._tooltip
-        )
-        self.setIconSize(QSize(20, 20) if compacto else QSize(16, 16))
-        self._poner_icono()
-        repulir(self)
-
-    def ancho_con_texto(self):
-        """Ancho aproximado del botón con icono y texto (más 8 DIP del anillo)."""
-        letra_negrita = self.fontMetrics().horizontalAdvance(self._texto) * 1.1
-        return round(letra_negrita) + self._tamano_icono + 6 + 24 + 2 + 8
-
-    def aplicar_colores(self, colores):
-        self._color = colores["texto"]
-        self._poner_icono()
-
-    def _poner_icono(self):
-        tamano = 20 if self.objectName() == "icono_sec" else self._tamano_icono
-        self.setIcon(iconos.icono(self._nombre_icono, self._color, tamano))
-
-
-class TarjetaGrafica(ConAnillo):
-    """Tarjeta con cabecera (título + botones) y una gráfica enfocable.
-
-    Es un ConAnillo: al enfocar la gráfica, el anillo rodea la tarjeta entera.
-    """
-
-    def __init__(self, titulo, grafica, botones):
-        self.tarjeta = QFrame()
-        self.tarjeta.setObjectName("tarjeta")
-        diseno = QVBoxLayout(self.tarjeta)
-        diseno.setContentsMargins(16, 12, 16, 12)
-        diseno.setSpacing(8)
-
-        cabecera = QHBoxLayout()
-        cabecera.setSpacing(0)
-        self.titulo = etiqueta(titulo, "encabezado")
-        cabecera.addWidget(self.titulo, 1)
-        self.botones = botones
-        for boton in botones:
-            # Cada botón con su anillo; los anillos suman 8 DIP de separación.
-            cabecera.addWidget(ConAnillo(boton, solo_teclado=True))
-        diseno.addLayout(cabecera)
-
-        self.grafica = grafica
-        # "Ignored": el tamaño preferido del lienzo de matplotlib (unos 640 x 480)
-        # no cuenta, y las tarjetas se reparten el alto según los pesos 55/45.
-        grafica.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
-        diseno.addWidget(grafica, 1)
-        self.diseno_tarjeta = diseno
-        self._forzar_compacto = False
-        super().__init__(self.tarjeta, vigilar=grafica, tipo="tarjeta")
-
-    def agregar_pie(self, widget):
-        """Pone un widget (aviso, sugerencia) debajo de la gráfica."""
-        self.diseno_tarjeta.addWidget(widget)
-
-    def forzar_compacto(self, compacto):
-        self._forzar_compacto = compacto
-        self._ajustar_botones()
+        self.colores = colores
+        self._imagen = None
 
     def resizeEvent(self, evento):
+        self._imagen = None  # cambió el tamaño: hay que volver a dibujarlo
         super().resizeEvent(evento)
-        self._ajustar_botones()
 
-    def _ajustar_botones(self):
-        """Solo icono si el título y los botones con texto no caben en la cabecera."""
-        necesario = self.titulo.sizeHint().width() + sum(
-            boton.ancho_con_texto() for boton in self.botones
-        )
-        disponible = self.width() - 32  # márgenes laterales de la tarjeta
-        compacto = self._forzar_compacto or necesario > disponible
-        for boton in self.botones:
-            if (boton.objectName() == "icono_sec") != compacto:
-                boton.compactar(compacto)
+    def paintEvent(self, evento):
+        if self._imagen is None or self._imagen.size() != self.size():
+            self._imagen = self._dibujar_fondo()
+        pintor = QPainter(self)
+        pintor.drawPixmap(evento.rect(), self._imagen, evento.rect())
+
+    def _dibujar_fondo(self):
+        c = self.colores
+        ancho, alto = self.width(), self.height()
+        imagen = QPixmap(self.size())
+        pintor = QPainter(imagen)
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        degradado = QLinearGradient(0, 0, 0, alto)
+        degradado.setColorAt(0, QColor(c["fondo"]))
+        degradado.setColorAt(1, QColor(c["fondo_2"]))
+        pintor.fillRect(imagen.rect(), degradado)
+
+        # Dos manchas de luz muy suaves (azul arriba a la izquierda,
+        # turquesa abajo a la derecha)
+        for x, y, radio, nombre in (
+            (0.15, 0.10, 0.55, "brillo"),
+            (0.90, 0.95, 0.50, "serie_turquesa"),
+        ):
+            centro = QPointF(x * ancho, y * alto)
+            mancha = QRadialGradient(centro, radio * max(ancho, alto))
+            mancha.setColorAt(0, con_alfa(c[nombre], 0.16))
+            mancha.setColorAt(1, con_alfa(c[nombre], 0.0))
+            pintor.fillRect(imagen.rect(), mancha)
+
+        # Rejilla tenue, como una hoja cuadriculada
+        pintor.setPen(QPen(con_alfa(c["rejilla"], 0.55), 1))
+        for x in range(0, ancho, self.LADO_REJILLA):
+            pintor.drawLine(x, 0, x, alto)
+        for y in range(0, alto, self.LADO_REJILLA):
+            pintor.drawLine(0, y, ancho, y)
+        pintor.end()
+        return imagen
 
 
 # ---------------------------------------------------------------------------
-# Bandas de aviso, error e información
+# Tarjeta
 # ---------------------------------------------------------------------------
-class Banda(QFrame):
-    """Franja con icono y texto: aviso, error o información (sin cuadros modales).
+class Tarjeta(QFrame):
+    """Panel blanco redondeado. Al pasar el mouse, su borde se ilumina."""
 
-    `rol` decide el fondo (QSS) y `token_icono` el color del icono.
-    """
+    MARGEN_BRILLO = 10  # espacio alrededor del panel para dibujar el halo
 
-    def __init__(self, rol, nombre_icono, token_icono, texto=""):
+    def __init__(self, colores, titulo=None):
         super().__init__()
-        self.setObjectName("banda")
-        self.setProperty("rol", rol)
-        self._nombre_icono = nombre_icono
-        self._token_icono = token_icono
+        self.colores = colores
+        self._luz = 0.0  # 0 = apagada, 1 = iluminada
+        self._animacion = QVariantAnimation(self)
+        self._animacion.setDuration(DURACION_BRILLO_MS)
+        self._animacion.valueChanged.connect(self._al_cambiar_luz)
 
-        diseno = QHBoxLayout(self)
-        diseno.setContentsMargins(12, 6, 12, 6)
-        diseno.setSpacing(8)
-        self.icono = QLabel()
-        self.icono.setFixedSize(16, 16)
-        self.texto = etiqueta(texto, "texto_banda", sangria=False, palabras=True)
-        diseno.addWidget(self.icono, 0, Qt.AlignmentFlag.AlignTop)
-        diseno.addWidget(self.texto, 1)
-        self.aplicar_colores(None)
+        m = self.MARGEN_BRILLO
+        self.contenido = QVBoxLayout(self)
+        self.contenido.setContentsMargins(m + 22, m + 18, m + 22, m + 20)
+        self.contenido.setSpacing(10)
 
-    def mostrar(self, texto):
-        self.texto.setText(texto)
-        self.setVisible(True)
+        self.cabecera = QHBoxLayout()
+        self.cabecera.setSpacing(8)
+        if titulo:
+            self.cabecera.addWidget(etiqueta_pequena(titulo))
+        self.cabecera.addStretch(1)
+        self.contenido.addLayout(self.cabecera)
 
-    def aplicar_colores(self, colores):
-        if colores is not None:
-            self.icono.setPixmap(
-                iconos.pixmap(self._nombre_icono, colores[self._token_icono], 16)
-            )
+    def enterEvent(self, evento):
+        self._encender(1.0)
+        super().enterEvent(evento)
 
+    def leaveEvent(self, evento):
+        self._encender(0.0)
+        super().leaveEvent(evento)
 
-# ---------------------------------------------------------------------------
-# Campo de texto con etiqueta, ayuda y mensaje de error
-# ---------------------------------------------------------------------------
-class CampoNumerico(QWidget):
-    """Etiqueta + campo (con sufijo opcional) + ayuda que se cambia por el error.
+    def _encender(self, destino):
+        self._animacion.stop()
+        self._animacion.setStartValue(self._luz)
+        self._animacion.setEndValue(destino)
+        self._animacion.start()
 
-    `validar` es una función texto -> (valor, mensaje) como las de
-    viviani.validacion. El mensaje se MUESTRA al pulsar Calcular (lo pide la
-    ventana), al salir del campo o tras 600 ms sin escribir; y DESAPARECE en
-    cuanto el texto pasa a ser válido.
-    """
-
-    pausa_al_escribir = Signal()  # pasaron 600 ms sin teclear
-
-    def __init__(self, titulo, validar, valor_inicial, marcador, ayuda, tooltip,
-                 nombre_accesible, sufijo=None):  # fmt: skip
-        super().__init__()
-        self._validar = validar
-        self._editado = False
-
-        self.entrada = QLineEdit(valor_inicial)
-        self.entrada.setObjectName("entrada")
-        self.entrada.setPlaceholderText(marcador)
-        self.entrada.setToolTip(tooltip)
-        self.entrada.setAccessibleName(nombre_accesible)
-        self.entrada.textEdited.connect(self._al_editar)
-        self.entrada.installEventFilter(self)
-
-        self.marco = QFrame()
-        self.marco.setObjectName("campo")
-        self.marco.setProperty("error", False)
-        self.marco.setProperty("hover", False)
-        interior = QHBoxLayout(self.marco)
-        interior.setContentsMargins(0, 0, 0, 0)
-        interior.setSpacing(0)
-        interior.addWidget(self.entrada, 1)
-        if sufijo:
-            interior.addWidget(etiqueta(sufijo, "sufijo", sangria=False))
-        self.anillo = ConAnillo(self.marco, vigilar=self.entrada)
-
-        self.titulo = etiqueta(titulo, "etiqueta_campo")
-        self.titulo.setBuddy(self.entrada)
-
-        # La ayuda y el error comparten la misma celda: el que no se ve
-        # conserva su sitio, así el diseño no salta al aparecer un error.
-        self.ayuda = etiqueta(ayuda, "ayuda", palabras=True)
-        self.mensaje = etiqueta("", "mensaje_error", sangria=False, palabras=True)
-        self.icono_error = QLabel()
-        self.icono_error.setFixedSize(16, 16)
-        self.zona_error = QWidget()
-        fila_error = QHBoxLayout(self.zona_error)
-        fila_error.setContentsMargins(SANGRIA, 0, SANGRIA, 0)
-        fila_error.setSpacing(4)
-        fila_error.addWidget(self.icono_error, 0, Qt.AlignmentFlag.AlignTop)
-        fila_error.addWidget(self.mensaje, 1)
-        celda = QGridLayout()
-        celda.setContentsMargins(0, 0, 0, 0)
-        celda.addWidget(self.ayuda, 0, 0)
-        celda.addWidget(self.zona_error, 0, 0)
-        for pieza in (self.ayuda, self.zona_error):
-            politica = pieza.sizePolicy()
-            politica.setRetainSizeWhenHidden(True)
-            pieza.setSizePolicy(politica)
-        self.zona_error.setVisible(False)
-
-        diseno = QVBoxLayout(self)
-        diseno.setContentsMargins(0, 0, 0, 0)
-        diseno.setSpacing(0)
-        diseno.addWidget(self.titulo)
-        diseno.addWidget(self.anillo)
-        diseno.addLayout(celda)
-
-        self._temporizador = QTimer(self)
-        self._temporizador.setSingleShot(True)
-        self._temporizador.setInterval(RETARDO_MENSAJE_MS)
-        self._temporizador.timeout.connect(self._tras_pausa)
-        self.aplicar_colores(None)
-
-    # --- lectura y validación -------------------------------------------
-    def texto(self):
-        return self.entrada.text()
-
-    def validar(self):
-        """Valida en silencio: devuelve (valor, mensaje) sin mostrar nada."""
-        return self._validar(self.entrada.text())
-
-    def validar_y_mostrar(self):
-        """Valida y deja a la vista el error (o lo quita). Devuelve (valor, msg)."""
-        valor, mensaje = self.validar()
-        self.mostrar_error(mensaje)
-        return valor, mensaje
-
-    def hay_error(self):
-        return self.mensaje.text() != ""
-
-    # --- mensajes ----------------------------------------------------------
-    def mostrar_error(self, mensaje):
-        """Muestra `mensaje` en lugar de la ayuda; "" quita el error."""
-        hay_error = mensaje != ""
-        self.mensaje.setText(mensaje)
-        self.zona_error.setVisible(hay_error)
-        self.ayuda.setVisible(not hay_error)
-        self.marco.setProperty("error", hay_error)
-        self.entrada.setAccessibleDescription(mensaje)
-        repulir(self.marco)
-
-    def _al_editar(self, _texto):
-        self._editado = True
-        _valor, mensaje = self.validar()
-        if mensaje == "":
-            self.mostrar_error("")  # válido: el mensaje desaparece al instante
-        self._temporizador.start()
-
-    def _tras_pausa(self):
-        self._mostrar_si_corresponde()
-        self.pausa_al_escribir.emit()
-
-    def _mostrar_si_corresponde(self):
-        # Un campo vacío que nadie tocó no muestra error.
-        if self._editado or self.entrada.text().strip() != "":
-            self.validar_y_mostrar()
-
-    # --- eventos de la entrada --------------------------------------------
-    def eventFilter(self, objeto, evento):
-        if objeto is self.entrada:
-            tipo = evento.type()
-            if tipo == QEvent.Type.FocusOut:
-                self._temporizador.stop()
-                self._mostrar_si_corresponde()
-            elif tipo in (QEvent.Type.Enter, QEvent.Type.Leave):
-                # El marco no recibe "hover" cuando el ratón está sobre la
-                # entrada (que lo cubre), así que se avisa a mano.
-                self.marco.setProperty("hover", tipo == QEvent.Type.Enter)
-                repulir(self.marco)
-        return False
-
-    def aplicar_colores(self, colores):
-        if colores is not None:
-            self.icono_error.setPixmap(
-                iconos.pixmap("circle-alert", colores["error"], 16)
-            )
-
-
-# ---------------------------------------------------------------------------
-# Interruptor
-# ---------------------------------------------------------------------------
-class Interruptor(QAbstractButton):
-    """Interruptor "Sonido: activado/desactivado" pintado a mano.
-
-    Se lee por tres señales a la vez (no solo el color): posición del pulgar,
-    icono y texto (DISENO 4.8). Pista 44 x 24 DIP.
-    """
-
-    ANCHO_PISTA = 44
-    ALTO_PISTA = 24
-    ALTO = 32
-
-    def __init__(self):
-        super().__init__()
-        self.setCheckable(True)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._colores = None
-
-    def aplicar_colores(self, colores):
-        self._colores = colores
+    def _al_cambiar_luz(self, valor):
+        self._luz = float(valor)
         self.update()
 
+    def paintEvent(self, _evento):
+        c = self.colores
+        pintor = QPainter(self)
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+        panel = QRectF(self.rect()).adjusted(*(self.MARGEN_BRILLO,) * 2,
+                                             *(-self.MARGEN_BRILLO,) * 2)  # fmt: skip
+        radio = tema.RADIO_TARJETA
+
+        # Sombra suave debajo del panel
+        pintor.setPen(Qt.PenStyle.NoPen)
+        for desplazamiento, alfa in ((6, 0.035), (3, 0.05)):
+            pintor.setBrush(con_alfa("#1E3C6E", alfa))
+            pintor.drawRoundedRect(panel.translated(0, desplazamiento), radio, radio)
+
+        # Halo de luz (solo cuando el mouse está encima)
+        if self._luz > 0:
+            for crecer, alfa in ((8, 0.06), (5, 0.10), (2.5, 0.16)):
+                pintor.setBrush(con_alfa(c["brillo"], alfa * self._luz))
+                pintor.drawRoundedRect(
+                    panel.adjusted(-crecer, -crecer, crecer, crecer),
+                    radio + crecer,
+                    radio + crecer,
+                )
+
+        borde = mezclar(c["borde"], c["borde_brillo"], self._luz)
+        pintor.setPen(QPen(borde, 1.2))
+        pintor.setBrush(QColor(c["superficie"]))
+        pintor.drawRoundedRect(panel, radio, radio)
+
+
+# ---------------------------------------------------------------------------
+# Botón con brillo
+# ---------------------------------------------------------------------------
+class BotonBrillante(QPushButton):
+    """Botón en forma de píldora.
+
+    La ventana le avisa dónde está el cursor (`acercar`); cuanto más cerca,
+    más brilla y más se "levanta". Al presionarlo se hunde un poco.
+    variante: "principal" (relleno azul) o "secundario" (blanco con borde).
+    """
+
+    MARGEN = 12  # espacio para el halo
+
+    def __init__(self, colores, texto, nombre_icono=None, variante="principal"):
+        super().__init__(texto)
+        self.colores = colores
+        self.variante = variante
+        self._nombre_icono = nombre_icono
+        self._cerca = 0.0
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFont(fuente(tema.FAMILIAS_INTERFAZ, 11, QFont.Weight.DemiBold))
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._alto_pildora = 44 if variante == "principal" else 34
+
     def sizeHint(self):
-        ancho_texto = QFontMetrics(self.font()).horizontalAdvance(self.text())
-        return QSize(self.ANCHO_PISTA + 8 + 16 + 6 + ancho_texto + 8, self.ALTO)
+        ancho_texto = self.fontMetrics().horizontalAdvance(self.text())
+        ancho = ancho_texto + 48 + (24 if self._nombre_icono else 0)
+        return QSize(ancho + 2 * self.MARGEN, self._alto_pildora + 2 * self.MARGEN)
 
     def minimumSizeHint(self):
         return self.sizeHint()
 
-    def paintEvent(self, _evento):
-        if self._colores is None:
+    def acercar(self, cursor_global):
+        """Calcula el brillo según la distancia del cursor a la píldora."""
+        if not self.isVisible():
             return
-        c = self._colores
-        pincel = QPainter(self)
-        pincel.setRenderHint(QPainter.RenderHint.Antialiasing)
-        y_pista = (self.height() - self.ALTO_PISTA) / 2
-        activado = self.isChecked()
-
-        # Pista: llena en `acento` si está activado, solo contorno si no.
-        pincel.setPen(Qt.PenStyle.NoPen if activado else QPen(QColor(c["borde"]), 1))
-        pincel.setBrush(QColor(c["acento"]) if activado else Qt.BrushStyle.NoBrush)
-        margen = 0 if activado else 0.5
-        pincel.drawRoundedRect(
-            margen, y_pista + margen,
-            self.ANCHO_PISTA - 2 * margen, self.ALTO_PISTA - 2 * margen,
-            self.ALTO_PISTA / 2, self.ALTO_PISTA / 2,
-        )  # fmt: skip
-
-        # Pulgar: a la derecha si está activado, a la izquierda si no.
-        diametro = 16
-        x_pulgar = self.ANCHO_PISTA - diametro - 4 if activado else 4
-        color_pulgar = c["texto_sobre_acento"] if activado else c["borde"]
-        pincel.setPen(Qt.PenStyle.NoPen)
-        pincel.setBrush(QColor(color_pulgar))
-        pincel.drawEllipse(x_pulgar, y_pista + (self.ALTO_PISTA - diametro) / 2,
-                           diametro, diametro)  # fmt: skip
-
-        # Icono y texto a la derecha de la pista.
-        x = self.ANCHO_PISTA + 8
-        nombre = "volume-2" if activado else "volume-x"
-        pincel.drawPixmap(
-            x, (self.height() - 16) // 2, iconos.pixmap(nombre, c["texto"], 16)
+        esquina = self.mapToGlobal(self.rect().topLeft())
+        pildora = QRectF(self._pildora()).translated(esquina.x(), esquina.y())
+        dx = max(
+            pildora.left() - cursor_global.x(), 0, cursor_global.x() - pildora.right()
         )
-        pincel.setPen(QColor(c["texto"]))
-        zona_texto = self.rect().adjusted(x + 16 + 6, 0, 0, 0)
-        pincel.drawText(zona_texto, Qt.AlignmentFlag.AlignVCenter, self.text())
+        dy = max(
+            pildora.top() - cursor_global.y(), 0, cursor_global.y() - pildora.bottom()
+        )
+        cerca = max(0.0, 1 - math.hypot(dx, dy) / DISTANCIA_BRILLO) ** 1.5
+        if abs(cerca - self._cerca) > 0.01:
+            self._cerca = cerca
+            self.update()
+
+    def _pildora(self):
+        alto = self._alto_pildora
+        arriba = (self.height() - alto) / 2
+        return QRectF(self.MARGEN, arriba, self.width() - 2 * self.MARGEN, alto)
+
+    def paintEvent(self, _evento):
+        c = self.colores
+        pintor = QPainter(self)
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pildora = self._pildora()
+        # Se levanta 2 px al acercarse y se hunde 1 px al presionar
+        pildora.translate(0, 1 if self.isDown() else -2 * self._cerca)
+        radio = pildora.height() / 2
+        brillo = self._cerca
+
+        pintor.setPen(Qt.PenStyle.NoPen)
+        if brillo > 0:
+            for crecer, alfa in ((10, 0.08), (6, 0.14), (3, 0.22)):
+                pintor.setBrush(con_alfa(c["brillo"], alfa * brillo))
+                pintor.drawRoundedRect(
+                    pildora.adjusted(-crecer, -crecer, crecer, crecer),
+                    radio + crecer,
+                    radio + crecer,
+                )
+
+        if self.variante == "principal":
+            relleno = QLinearGradient(pildora.topLeft(), pildora.bottomLeft())
+            relleno.setColorAt(0, mezclar(c["acento"], "#FFFFFF", 0.18 + 0.12 * brillo))
+            relleno.setColorAt(
+                1, QColor(c["acento_hover"] if self.isDown() else c["acento"])
+            )
+            pintor.setBrush(relleno)
+            color_texto = QColor(c["texto_sobre_acento"])
+        else:
+            pintor.setPen(QPen(mezclar(c["borde"], c["borde_brillo"], brillo), 1.2))
+            pintor.setBrush(mezclar("#FFFFFF", c["acento_suave"], 0.5 * brillo))
+            color_texto = QColor(c["acento"])
+        pintor.drawRoundedRect(pildora, radio, radio)
+
+        # Reflejo blanco en la mitad de arriba: da el aspecto de vidrio
+        reflejo = QPainterPath()
+        reflejo.addRoundedRect(
+            pildora.adjusted(2, 2, -2, -pildora.height() / 2), radio, radio
+        )
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(con_alfa("#FFFFFF", 0.10 + 0.08 * brillo))
+        pintor.drawPath(reflejo)
+
+        if self.hasFocus():  # anillo de foco para quien usa el teclado
+            pintor.setPen(QPen(con_alfa(c["acento"], 0.6), 2))
+            pintor.setBrush(Qt.BrushStyle.NoBrush)
+            pintor.drawRoundedRect(pildora.adjusted(-4, -4, 4, 4), radio + 4, radio + 4)
+
+        # Icono y texto centrados
+        ancho_texto = self.fontMetrics().horizontalAdvance(self.text())
+        ancho_icono = 22 if self._nombre_icono else 0
+        x = pildora.center().x() - (ancho_texto + ancho_icono) / 2
+        if self._nombre_icono:
+            imagen = iconos.pixmap(self._nombre_icono, color_texto.name(), 16)
+            pintor.drawPixmap(QPointF(x, pildora.center().y() - 8), imagen)
+        pintor.setPen(color_texto)
+        pintor.setFont(self.font())
+        caja = QRectF(x + ancho_icono, pildora.top(), ancho_texto + 2, pildora.height())
+        izquierda = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft
+        pintor.drawText(caja, izquierda, self.text())
 
 
 # ---------------------------------------------------------------------------
-# Selector de método (control segmentado)
+# Campo numérico
 # ---------------------------------------------------------------------------
-class SelectorMetodo(QWidget):
-    """Tres botones exclusivos: izquierda, punto medio y derecha.
+class CajaConUnidad(QLineEdit):
+    """Caja de texto que muestra la unidad (por ejemplo "cm") a la derecha."""
 
-    La letra con `&` es el atajo Alt (Alt+I, Alt+P, Alt+D). Con el teclado
-    se entra con Tab al botón elegido y las flechas cambian de opción.
+    def __init__(self, unidad=""):
+        super().__init__()
+        self.unidad = unidad
+        if unidad:
+            self.setTextMargins(0, 0, 34, 0)
+
+    def paintEvent(self, evento):
+        super().paintEvent(evento)
+        if self.unidad:
+            pintor = QPainter(self)
+            pintor.setPen(QColor(tema.paleta()["texto_sec"]))
+            pintor.setFont(fuente(tema.FAMILIAS_MONO, 10))
+            caja = self.rect().adjusted(0, 0, -16, 0)
+            derecha = Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight
+            pintor.drawText(caja, derecha, self.unidad)
+
+
+class CampoNumerico(QWidget):
+    """Etiqueta, caja de texto y, debajo, el mensaje de error (si hay).
+
+    `validar` es una función de viviani.validacion: recibe el texto y
+    devuelve (valor, mensaje).
     """
 
-    metodo_cambiado = Signal(str)  # "izquierda" | "punto_medio" | "derecha"
-
-    OPCIONES = (
-        ("izquierda", "&Izquierda",
-         "Evalúa f en el extremo izquierdo de cada subintervalo (Alt+I)"),
-        ("punto_medio", "&Punto medio",
-         "Evalúa f en el punto medio de cada subintervalo (Alt+P)"),
-        ("derecha", "&Derecha",
-         "Evalúa f en el extremo derecho de cada subintervalo (Alt+D)"),
-    )  # fmt: skip
-
-    def __init__(self):
+    def __init__(self, colores, titulo, validar, valor_inicial, marcador, unidad=""):
         super().__init__()
-        self.botones = {}
-        self._grupo = QButtonGroup(self)
-        self._grupo.setExclusive(True)
-        diseno = QHBoxLayout(self)
+        self._validar = validar
+        self.caja = CajaConUnidad(unidad)
+        self.caja.setText(valor_inicial)
+        self.caja.setPlaceholderText(marcador)
+        self.caja.setAccessibleName(titulo)
+        self.caja.setFont(fuente(tema.FAMILIAS_NUMEROS, 15))
+        self.caja.setMinimumHeight(48)
+
+        # Brillo azul alrededor de la caja cuando tiene el foco
+        self._halo = QGraphicsDropShadowEffect(self.caja)
+        self._halo.setOffset(0, 0)
+        self._halo.setColor(con_alfa(colores["brillo"], 0.0))
+        self._halo.setBlurRadius(24)
+        self.caja.setGraphicsEffect(self._halo)
+        self._animacion = QVariantAnimation(self)
+        self._animacion.setDuration(DURACION_BRILLO_MS)
+        self._animacion.valueChanged.connect(
+            lambda v: self._halo.setColor(con_alfa(colores["brillo"], float(v)))
+        )
+        self.caja.installEventFilter(self)
+
+        self.mensaje = QLabel("")
+        self.mensaje.setProperty("rol", "error")
+        self.mensaje.setWordWrap(True)
+        self.mensaje.setMinimumHeight(18)  # reserva el lugar: el diseño no salta
+
+        diseno = QVBoxLayout(self)
         diseno.setContentsMargins(0, 0, 0, 0)
-        diseno.setSpacing(0)
-        for clave, texto, ayuda in self.OPCIONES:
-            boton = QPushButton(texto)
-            boton.setObjectName("segmento")
-            boton.setCheckable(True)
-            boton.setToolTip(ayuda)
-            boton.setAccessibleName("Método " + texto.replace("&", "").lower())
-            boton.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._grupo.addButton(boton)
-            self.botones[clave] = boton
-            diseno.addWidget(ConAnillo(boton, solo_teclado=True), 1)
-        self.botones["punto_medio"].setChecked(True)  # por omisión
-        for clave, boton in self.botones.items():
-            boton.toggled.connect(lambda marcado, c=clave: self._al_marcar(c, marcado))
+        diseno.setSpacing(6)
+        diseno.addWidget(etiqueta_pequena(titulo))
+        diseno.addWidget(self.caja)
+        diseno.addWidget(self.mensaje)
 
-    def metodo(self):
-        for clave, boton in self.botones.items():
-            if boton.isChecked():
-                return clave
+        self.caja.textEdited.connect(self._al_editar)
 
-    def establecer(self, clave):
-        self.botones[clave].setChecked(True)
+    def validar_y_mostrar(self):
+        """Valida, muestra el mensaje si hay error y devuelve el valor (o None)."""
+        valor, mensaje = self._validar(self.caja.text())
+        self.mostrar_error(mensaje)
+        return valor
 
-    def _al_marcar(self, clave, marcado):
-        if marcado:
-            self.metodo_cambiado.emit(clave)
+    def mostrar_error(self, mensaje):
+        self.mensaje.setText(mensaje)
+        self.caja.setProperty("error", bool(mensaje))
+        self.caja.style().unpolish(self.caja)
+        self.caja.style().polish(self.caja)
+
+    def hay_error(self):
+        return bool(self.mensaje.text())
+
+    def _al_editar(self, _texto):
+        # El mensaje desaparece en cuanto el texto vuelve a ser válido
+        if self.hay_error() and not self._validar(self.caja.text())[1]:
+            self.mostrar_error("")
+
+    def eventFilter(self, objeto, evento):
+        if objeto is self.caja and evento.type() in (
+            evento.Type.FocusIn,
+            evento.Type.FocusOut,
+        ):
+            entra = evento.type() == evento.Type.FocusIn
+            self._animacion.stop()
+            self._animacion.setStartValue(self._halo.color().alphaF())
+            self._animacion.setEndValue(0.55 if entra else 0.0)
+            self._animacion.start()
+        return super().eventFilter(objeto, evento)

@@ -1,263 +1,112 @@
-"""Tarjeta "Resultado": valores del cálculo y avisos de error o cancelación.
+"""Tarjeta "Resultado": perímetro aproximado, valor de control y errores."""
 
-Estados (DISENO 4.7): vacía, con resultado, error de cálculo. Encima de
-cualquiera de ellos puede aparecer la banda "Cálculo cancelado".
-"""
-
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QVariantAnimation
 from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QGridLayout,
-    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
     QWidget,
 )
 
-from viviani.formato import (
-    formatear_cientifico,
-    formatear_entero,
-    formatear_medida,
-    formatear_radio,
-    nombre_metodo,
-)
-from viviani.ui.componentes import Banda, Tarjeta, etiqueta
+from viviani import tema
+from viviani.formato import formatear_cientifico, formatear_medida
+from viviani.ui.componentes import Tarjeta, etiqueta_pequena, fuente
 
-DURACION_APARICION_MS = 200
-_SUPERINDICES_A_TEXTO = str.maketrans("⁻⁰¹²³⁴⁵⁶⁷⁸⁹", "-0123456789")
-
-
-def cientifica_en_palabras(valor):
-    """El número como lo leería el Narrador.
-
-    7,982 × 10⁻⁴  ->  "7,982 por 10 a la menos 4"
-    """
-    texto = formatear_cientifico(valor, 4)
-    if " × 10" not in texto:
-        return texto
-    mantisa, potencia = texto.split(" × 10")
-    exponente = potencia.translate(_SUPERINDICES_A_TEXTO).replace("-", "menos ")
-    return f"{mantisa} por 10 a la {exponente}"
-
-
-def _fuente_de_cifras(base, puntos, peso):
-    """Fuente con cifras tabulares (todas las cifras del mismo ancho)."""
-    fuente = QFont(base)
-    fuente.setPointSizeF(puntos)
-    fuente.setWeight(peso)
-    try:
-        fuente.setFeature(QFont.Tag("tnum"), 1)
-    except Exception:  # pragma: no cover - versiones de Qt sin esta función
-        pass
-    return fuente
+DURACION_APARECER_MS = 220
+SIN_VALOR = "—"
 
 
 class TarjetaResultado(Tarjeta):
-    def __init__(self, escala=1.0):
-        super().__init__("Resultado")
-        self._escala = escala
-        self._animacion = None
+    def __init__(self, colores):
+        super().__init__(colores, "Resultado")
 
-        self.banda_cancelado = Banda("aviso", "info", "aviso")
-        self.banda_cancelado.setVisible(False)
-        self.banda_error = Banda("error", "circle-alert", "error")
-        self.banda_error.setVisible(False)
-        self.vacio = Banda(
-            "vacio", "info", "texto_sec",
-            "Aún no hay resultados. Escriba R y n y presione Enter.",
-        )  # fmt: skip
-        self.contenido = self._crear_contenido()
-        self.contenido.setVisible(False)
+        # Bloque de valores (se desvanece al aparecer un resultado nuevo)
+        self._valores = QWidget()
+        rejilla = QGridLayout(self._valores)
+        rejilla.setContentsMargins(0, 0, 0, 0)
+        rejilla.setHorizontalSpacing(12)
+        rejilla.setVerticalSpacing(10)
 
-        # "Vacío" y "contenido" comparten celda: la tarjeta no cambia de
-        # altura al llegar el primer resultado.
-        celda = QGridLayout()
-        celda.setContentsMargins(0, 0, 0, 0)
-        celda.addWidget(self.vacio, 0, 0, Qt.AlignmentFlag.AlignVCenter)
-        celda.addWidget(self.contenido, 0, 0)
-        # La banda de error también va en la misma celda: ocupa el sitio de los
-        # valores y la tarjeta no crece cuando falla un cálculo.
-        celda.addWidget(self.banda_error, 0, 0, Qt.AlignmentFlag.AlignTop)
-        for pieza in (self.vacio, self.contenido, self.banda_error):
-            politica = pieza.sizePolicy()
-            politica.setRetainSizeWhenHidden(True)
-            pieza.setSizePolicy(politica)
-
-        # El contexto ("Para R = 5 cm, n = 10…") comparte la fila del título.
-        self.diseno.removeWidget(self.encabezado)
-        fila_titulo = QHBoxLayout()
-        fila_titulo.setSpacing(8)
-        fila_titulo.addWidget(self.encabezado)
-        fila_titulo.addWidget(self.etiqueta_contexto, 1)
-        self.diseno.insertLayout(0, fila_titulo)
-        self.diseno.addWidget(self.banda_cancelado)
-        self.diseno.addLayout(celda)
-
-    # --- construcción -----------------------------------------------------
-    def _crear_contenido(self):
-        base = self.font()
-        derecha = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-
-        self.etiqueta_contexto = etiqueta("", "contexto", palabras=True)
-        self.etiqueta_contexto.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        rejilla.addWidget(etiqueta_pequena("Perímetro aproximado"), 0, 0, 1, 2)
+        self.etiqueta_perimetro = QLabel(SIN_VALOR)
+        self.etiqueta_perimetro.setFont(fuente(tema.FAMILIAS_NUMEROS, 26))
+        self.etiqueta_perimetro.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
         )
-        rotulo_principal = etiqueta("Perímetro aproximado", "rotulo")
-        self.etiqueta_perimetro = etiqueta("", "valor")
-        self.etiqueta_perimetro.setFont(
-            _fuente_de_cifras(base, 24 * self._escala, QFont.Weight.DemiBold)
-        )
-        self.etiqueta_control = etiqueta("", "valor")
-        self.etiqueta_error_abs = etiqueta("", "valor")
-        self.etiqueta_error_rel = etiqueta("", "valor")
-        for valor in (
-            self.etiqueta_control,
-            self.etiqueta_error_abs,
-            self.etiqueta_error_rel,
-        ):
-            valor.setFont(
-                _fuente_de_cifras(base, 14 * self._escala, QFont.Weight.Normal)
+        rejilla.addWidget(self.etiqueta_perimetro, 1, 0, 1, 2)
+
+        filas = (("Valor de control", 2), ("Error absoluto", 3), ("Error relativo", 4))
+        etiquetas = []
+        for texto, fila in filas:
+            rejilla.addWidget(etiqueta_pequena(texto), fila, 0)
+            valor = QLabel(SIN_VALOR)
+            valor.setFont(fuente(tema.FAMILIAS_NUMEROS, 14))
+            valor.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
             )
-            valor.setAlignment(derecha)
-
-        self.nota_control = etiqueta("7,640395578 · R", "ayuda")
-        self.nota_cero = etiqueta(
-            "Coincide con el valor de control dentro de la precisión del computador.",
-            "ayuda", palabras=True,
-        )  # fmt: skip
-        self.nota_cero.setVisible(False)
-
-        pagina = QWidget()
-        filas = QGridLayout(pagina)
-        filas.setContentsMargins(0, 0, 0, 0)
-        filas.setHorizontalSpacing(12)
-        filas.setVerticalSpacing(0)
-        filas.addWidget(rotulo_principal, 1, 0, 1, 2)
-        filas.addWidget(self.etiqueta_perimetro, 2, 0, 1, 2)
-        filas.setRowMinimumHeight(3, 2)
-        filas.addWidget(etiqueta("Valor de control", "rotulo"), 4, 0)
-        filas.addWidget(self.etiqueta_control, 4, 1)
-        filas.addWidget(self.nota_control, 5, 0, 1, 2)
-        filas.addWidget(etiqueta("Error absoluto", "rotulo"), 6, 0)
-        filas.addWidget(self.etiqueta_error_abs, 6, 1)
-        filas.addWidget(self.nota_cero, 7, 0, 1, 2)
-        filas.addWidget(etiqueta("Error relativo", "rotulo"), 8, 0)
-        filas.addWidget(self.etiqueta_error_rel, 8, 1)
-        filas.setColumnStretch(1, 1)
-        return pagina
-
-    # --- estados -----------------------------------------------------------
-    def mostrar_resultado(self, r, animar=True):
-        """Muestra los valores de `r` (un viviani.calculo.Resultado)."""
-        self.banda_cancelado.setVisible(False)
-        self.banda_error.setVisible(False)
-        self.etiqueta_contexto.setText(
-            f"Para R = {formatear_radio(r.radio)} cm, n = {formatear_entero(r.n)}, "
-            f"{nombre_metodo(r.metodo)}"
+            rejilla.addWidget(valor, fila, 1)
+            etiquetas.append(valor)
+        self.etiqueta_control, self.etiqueta_error_abs, self.etiqueta_error_rel = (
+            etiquetas
         )
+        rejilla.setRowMinimumHeight(1, 54)
+        self.contenido.addWidget(self._valores)
+
+        # Mensaje cuando el cálculo falla (por ejemplo, un radio enorme)
+        self.banda_error = QLabel()
+        self.banda_error.setProperty("rol", "banda_error")
+        self.banda_error.setWordWrap(True)
+        self.banda_error.hide()
+        self.contenido.addWidget(self.banda_error)
+        self.contenido.addStretch(1)
+
+        self._opacidad = QGraphicsOpacityEffect(self._valores)
+        self._opacidad.setOpacity(1.0)
+        self._valores.setGraphicsEffect(self._opacidad)
+        self._opacidad.setEnabled(False)  # solo se activa mientras aparece
+        self._aparicion = QVariantAnimation(self)
+        self._aparicion.setDuration(DURACION_APARECER_MS)
+        self._aparicion.setStartValue(0.0)
+        self._aparicion.setEndValue(1.0)
+        self._aparicion.valueChanged.connect(
+            lambda v: self._opacidad.setOpacity(float(v))
+        )
+        self._aparicion.finished.connect(lambda: self._opacidad.setEnabled(False))
+
+    def mostrar_resultado(self, r, animar=True):
+        """Escribe los cuatro valores con punto decimal."""
+        self.banda_error.hide()
+        self._valores.show()
         self.etiqueta_perimetro.setText(f"{formatear_medida(r.perimetro)} cm")
         self.etiqueta_control.setText(f"{formatear_medida(r.referencia)} cm")
         self.etiqueta_error_abs.setText(f"{formatear_cientifico(r.error_absoluto)} cm")
         self.etiqueta_error_rel.setText(f"{formatear_cientifico(r.error_relativo)} %")
-        self.nota_cero.setVisible(r.error_absoluto == 0)
-        self.setAccessibleName(
-            f"Perímetro aproximado {formatear_medida(r.perimetro)} centímetros. "
-            f"Error relativo {cientifica_en_palabras(r.error_relativo)} por ciento."
-        )
-        self.vacio.setVisible(False)
-        self.contenido.setVisible(True)
-        self._ajustar_valor_principal()
+        perimetro = formatear_medida(r.perimetro)
+        self.setAccessibleName(f"Resultado. Perímetro aproximado {perimetro} cm.")
         if animar:
-            self._aparecer()
+            self._opacidad.setEnabled(True)
+            self._aparicion.start()
 
     def mostrar_error(self, mensaje):
-        """Banda roja con la causa del fallo; se ocultan los valores anteriores."""
-        self.saltar_animacion()
-        mensaje = mensaje.strip()
+        """Reemplaza los valores por el motivo del fallo."""
         if not mensaje.startswith("No se pudo"):
-            mensaje = f"No se pudo calcular: {mensaje[:1].lower()}{mensaje[1:]}"
+            mensaje = "No se pudo calcular: " + mensaje[:1].lower() + mensaje[1:]
         if "demasiado grande" in mensaje and "Pruebe" not in mensaje:
             mensaje += " Pruebe con un radio menor."
-        self.banda_cancelado.setVisible(False)
-        self.banda_error.mostrar(mensaje)
-        # Los valores viejos se borran (no solo se ocultan): así ni el código ni
-        # el Narrador pueden leer un número que contradice la banda.
-        for valor in (
-            self.etiqueta_perimetro,
-            self.etiqueta_control,
-            self.etiqueta_error_abs,
-            self.etiqueta_error_rel,
-            self.etiqueta_contexto,
-        ):
-            valor.setText("")
-        self.nota_cero.setVisible(False)
-        self.contenido.setVisible(False)
-        self.vacio.setVisible(False)
-        self.setAccessibleName("Resultado. " + mensaje)
-
-    def mostrar_cancelado(self, hay_resultados):
-        """Aviso "Cálculo cancelado"; los resultados anteriores se conservan."""
-        self.banda_error.setVisible(False)
-        texto = "Cálculo cancelado."
-        if hay_resultados:
-            texto += " Se mantienen los resultados anteriores."
-        self.banda_cancelado.mostrar(texto)
-
-    def ocultar_avisos(self):
-        self.banda_cancelado.setVisible(False)
-        self.banda_error.setVisible(False)
-
-    def aplicar_colores(self, colores):
-        for banda in (self.banda_cancelado, self.banda_error, self.vacio):
-            banda.aplicar_colores(colores)
-
-    # --- animación de entrada ----------------------------------------------
-    def _aparecer(self):
-        """Los números aparecen ya completos, con un fundido de 200 ms."""
-        self.saltar_animacion()
-        efecto = QGraphicsOpacityEffect(self.contenido)
-        efecto.setOpacity(0.0)
-        self.contenido.setGraphicsEffect(efecto)
-        animacion = QPropertyAnimation(efecto, b"opacity", self)
-        animacion.setDuration(DURACION_APARICION_MS)
-        animacion.setStartValue(0.0)
-        animacion.setEndValue(1.0)
-        animacion.setEasingCurve(QEasingCurve.Type.OutCubic)
-        animacion.finished.connect(self._quitar_efecto)
-        self._animacion = animacion
-        animacion.start()
-
-    def _quitar_efecto(self):
-        self._animacion = None
-        self.contenido.setGraphicsEffect(None)
+        for etiqueta in (self.etiqueta_perimetro, self.etiqueta_control,
+                         self.etiqueta_error_abs, self.etiqueta_error_rel):  # fmt: skip
+            etiqueta.setText(SIN_VALOR)
+        self._valores.hide()
+        self.banda_error.setText(mensaje)
+        self.banda_error.show()
+        self.setAccessibleName(f"Resultado. {mensaje}")
 
     def esta_animando(self):
-        return self._animacion is not None
+        return self._aparicion.state() == QVariantAnimation.State.Running
 
     def saltar_animacion(self):
-        if self._animacion is not None:
-            self._animacion.stop()
-            self._quitar_efecto()
-
-    # --- ajuste del tamaño del perímetro ----------------------------------
-    def resizeEvent(self, evento):
-        super().resizeEvent(evento)
-        self._ajustar_valor_principal()
-
-    def _ajustar_valor_principal(self):
-        """Reduce los 24 pt si el número no cabe (radios muy grandes o pequeños)."""
-        etiqueta_valor = self.etiqueta_perimetro
-        disponible = self.contenido.width() - 8
-        if disponible <= 8:
-            return
-        puntos = 24 * self._escala
-        fuente = _fuente_de_cifras(self.font(), puntos, QFont.Weight.DemiBold)
-        while puntos > 14:
-            etiqueta_valor.setFont(fuente)
-            ancho = etiqueta_valor.fontMetrics().horizontalAdvance(
-                etiqueta_valor.text()
-            )
-            if ancho <= disponible:
-                break
-            puntos -= 1
-            fuente.setPointSizeF(puntos)
-        etiqueta_valor.setFont(fuente)
+        if self.esta_animando():
+            self._aparicion.setCurrentTime(DURACION_APARECER_MS)
+            self._aparicion.stop()
+            self._opacidad.setEnabled(False)

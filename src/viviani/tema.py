@@ -1,74 +1,78 @@
-"""Colores y medidas de la interfaz (modo claro y oscuro).
+"""Colores, fuentes y medidas de la interfaz.
 
-Los valores vienen de docs/DISENO.md, sección 2, donde está calculada la
-razón de contraste de cada par texto/fondo (WCAG AA). Si se cambia un color
-aquí hay que volver a ejecutar tests/test_tema.py, que revisa el contraste.
+La aplicación tiene un solo tema, claro, de tonos blanco azulado con brillos
+suaves. Cada color tiene un nombre ("token") para no repetir códigos
+hexadecimales por todo el programa: si se quiere cambiar un color, se cambia
+solo aquí.
 """
 
-# Cada color tiene un nombre ("token") y dos valores: claro y oscuro.
-_TOKENS = {
-    #  nombre:              (claro,     oscuro)
-    "fondo":               ("#F4F6F9", "#14171C"),
-    "superficie":          ("#FFFFFF", "#1E2229"),
-    "superficie_deshab":   ("#EEF0F3", "#262B33"),
-    "texto":               ("#1A1D23", "#E8EAED"),
-    "texto_sec":           ("#4A5361", "#A9B1BC"),
-    "texto_deshab":        ("#5C6573", "#8B939E"),
-    "acento":              ("#1F5FBF", "#7AAEFF"),
-    "acento_hover":        ("#174C99", "#A3C6FF"),
-    "texto_sobre_acento":  ("#FFFFFF", "#0B1220"),
-    "error":               ("#B3261E", "#FF8A80"),
-    "fondo_error":         ("#FDECEA", "#3B1A18"),
-    "exito":               ("#1B7A3A", "#6FD08C"),
-    "aviso":               ("#8A5A00", "#F2C14E"),
-    "fondo_aviso":         ("#FFF4DB", "#3A2E10"),
-    "borde":               ("#7A8494", "#7D8693"),
-    "separador":           ("#D5DAE1", "#3A404A"),
-    "foco":                ("#0B57D0", "#9CC3FF"),
-    "tooltip_fondo":       ("#2B3038", "#E8EAED"),
-    "tooltip_texto":       ("#FFFFFF", "#14171C"),
-    # Series de las gráficas (derivadas de la paleta Okabe-Ito, apta para
-    # personas con daltonismo).
-    "serie_azul":          ("#0072B2", "#56B4E9"),
-    "serie_naranja":       ("#C24E00", "#F28E2B"),
-    "serie_verde":         ("#00805C", "#3CC79A"),
-    "serie_morado":        ("#8E3B87", "#D98CD0"),
-    "punto_doble":         ("#B3261E", "#FF8A80"),
-    "esfera":              ("#7A8494", "#7D8693"),
+_COLORES = {
+    # Fondo de la ventana: degradado vertical con una rejilla muy tenue
+    "fondo":              "#EDF2FA",
+    "fondo_2":            "#F8FAFE",
+    "rejilla":            "#D3DDEC",
+    # Tarjetas tipo "vidrio"
+    "superficie":         "#FBFCFE",
+    "borde":              "#D9E2EF",
+    "borde_brillo":       "#8DBBF0",
+    "separador":          "#E3E9F2",
+    # Texto
+    "texto":              "#1B2232",
+    "texto_sec":          "#55617A",
+    "etiqueta":           "#5C6880",
+    # Acento (botón principal, foco, brillo)
+    "acento":             "#2F76CC",
+    "acento_hover":       "#245FA8",
+    "acento_suave":       "#DDEBFB",
+    "brillo":             "#6FA9EE",
+    "texto_sobre_acento": "#FFFFFF",
+    # Estados
+    "error":              "#B83A27",
+    "fondo_error":        "#FCEDEA",
+    # Series de las gráficas
+    "serie_azul":         "#2F76CC",
+    "serie_naranja":      "#D9672B",
+    "serie_turquesa":     "#1E9C8A",
+    "punto_doble":        "#E0533D",
+    "esfera":             "#8EA3C2",
 }
-
-# Transparencia de la superficie de la esfera en cada modo.
-ALFA_ESFERA = {"claro": 0.12, "oscuro": 0.18}
 
 # Espaciado (en píxeles lógicos) y radios de las esquinas.
 ESPACIO = {1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32}
-RADIO_CONTROL = 6
-RADIO_TARJETA = 10
+RADIO_CONTROL = 12
+RADIO_TARJETA = 22
 
-# Tipografía: fuente del sistema en Windows 11, con respaldos.
-FAMILIAS_INTERFAZ = ["Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", "Inter"]
+# Tipografía: todas vienen con Windows, no hay que instalar nada.
+#   - serif para títulos y números grandes (aire "de libro de matemáticas")
+#   - sans para el texto normal
+#   - monoespaciada para las etiquetas pequeñas en mayúsculas
+FAMILIAS_TITULO = ["Georgia", "Cambria", "Times New Roman"]
+# Para cifras: Cambria dibuja todos los dígitos del mismo alto (Georgia no)
+FAMILIAS_NUMEROS = ["Cambria", "Georgia", "Times New Roman"]
+FAMILIAS_INTERFAZ = ["Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI"]
+FAMILIAS_MONO = ["Cascadia Mono", "Consolas", "Courier New"]
 FAMILIAS_GRAFICAS = ["Segoe UI", "DejaVu Sans"]
 
 
-def paleta(oscuro):
-    """Devuelve un diccionario {nombre: "#RRGGBB"} para el modo pedido.
-
-    Incluye además la clave "modo" ("claro" u "oscuro") y "alfa_esfera".
-    """
-    indice = 1 if oscuro else 0
-    colores = {nombre: valores[indice] for nombre, valores in _TOKENS.items()}
-    colores["modo"] = "oscuro" if oscuro else "claro"
-    colores["alfa_esfera"] = ALFA_ESFERA[colores["modo"]]
-    return colores
+def paleta():
+    """Devuelve un diccionario {nombre: "#RRGGBB"} con todos los colores."""
+    return dict(_COLORES)
 
 
 def paleta_exportacion():
-    """Paleta para las imágenes PNG del reporte: siempre fondo blanco."""
-    colores = paleta(oscuro=False)
+    """Paleta para las imágenes PNG del reporte: fondo blanco y texto negro."""
+    colores = paleta()
+    colores["superficie"] = "#FFFFFF"
+    colores["fondo"] = "#FFFFFF"
     colores["texto"] = "#000000"
     colores["texto_sec"] = "#000000"
-    colores["fondo"] = "#FFFFFF"
     return colores
+
+
+def rgba(color, alfa):
+    """Color "#RRGGBB" con transparencia (0 a 1) en formato de hoja de estilos."""
+    r, g, b = (int(color[i : i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({r}, {g}, {b}, {round(alfa * 255)})"
 
 
 def razon_de_contraste(color_a, color_b):
