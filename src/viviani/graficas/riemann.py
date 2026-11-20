@@ -1,0 +1,176 @@
+"""Gráfica 2: la suma de Riemann con rectángulos (DISENO 8.3 y 6.2-6.5)."""
+
+import math
+
+import numpy as np
+from matplotlib.collections import PolyCollection
+from matplotlib.colors import to_rgba
+
+from viviani.formato import (
+    formatear_decimal,
+    formatear_radio,
+)
+from viviani.graficas.animacion import salida_suave
+from viviani.graficas.estilo import (
+    FORMATO_MARCAS,
+    preparar_ejes_2d,
+)
+from viviani.graficas.lienzo import LienzoBase
+
+DURACION_TOTAL_MS = 1500  # todos los rectángulos
+DURACION_BARRA_MS = 250  # lo que tarda en crecer cada rectángulo
+DURACION_FUNDIDO_MS = 150  # con "reducir movimiento"
+ALFA_RELLENO = 0.22
+
+
+def funcion(t, radio):
+    """Rapidez f(t) = R·√(1 + cos²t), con t en un arreglo de numpy."""
+    return radio * np.sqrt(1 + np.cos(t) ** 2)
+
+
+def vertices_de_barras(inicio, ancho, altura):
+    """Cuatro esquinas de cada rectángulo (base en el eje t)."""
+    x0, x1 = inicio, inicio + ancho
+    cero = np.zeros_like(altura)
+    esquinas = [(x0, cero), (x0, altura), (x1, altura), (x1, cero)]
+    return np.stack([np.column_stack(par) for par in esquinas], axis=1)
+
+
+def progreso_de_barras(ms, cantidad):
+    """Avance (0 a 1, con salida suave) de cada barra en el instante `ms`.
+
+    La barra k empieza en k·(1500 − 250)/(m − 1) ms y crece durante 250 ms.
+    """
+    if cantidad == 1:
+        inicios = np.zeros(1)
+    else:
+        inicios = (
+            np.arange(cantidad)
+            * (DURACION_TOTAL_MS - DURACION_BARRA_MS)
+            / (cantidad - 1)
+        )
+    avance = np.clip((ms - inicios) / DURACION_BARRA_MS, 0, 1)
+    return 1 - (1 - avance) ** 3, avance >= 1
+
+
+class GraficaRiemann(LienzoBase):
+    def __init__(self, colores, escala_texto=1.0):
+        super().__init__(colores, escala_texto)
+        self.radio = 5.0
+        self.resultado = None  # None: todavía no se ha calculado
+        self._elementos = {}
+        self.redibujar()
+
+    # --- Interfaz pública ----------------------------------------------
+    def mostrar_funcion(self, radio):
+        """Estado previo al primer cálculo: solo la curva f(t)."""
+        self.radio = radio
+        self.resultado = None
+        self.redibujar()
+
+    def mostrar_resultado(self, resultado, animar=True, reducir_movimiento=False):
+        self.radio = resultado.radio
+        self.resultado = resultado
+        self.redibujar(repintar=not animar)
+        if not animar:
+            self.animacion_terminada.emit()
+            return
+        elementos = self._elementos
+        artistas = [elementos["rectangulos"]]
+        if elementos["puntos"] is not None:
+            artistas.append(elementos["puntos"])
+        if reducir_movimiento:
+            self._animar(DURACION_FUNDIDO_MS, artistas, self._fundir)
+        else:
+            self._animar(DURACION_TOTAL_MS, artistas, self._hacer_crecer)
+
+    # --- Pasos de la animación ---------------------------------------------
+    def _hacer_crecer(self, ms):
+        """Cada rectángulo crece desde el eje; su punto aparece al terminar."""
+        r = self.resultado
+        avance, terminadas = progreso_de_barras(ms, len(r.barras_altura))
+        vertices = vertices_de_barras(
+            r.barras_inicio, r.barras_ancho, r.barras_altura * avance
+        )
+        self._elementos["rectangulos"].set_verts(vertices)
+        puntos = self._elementos["puntos"]
+        if puntos is not None:
+            visibles = np.column_stack([r.puntos_t, r.barras_altura])[terminadas]
+            puntos.set_offsets(visibles.reshape(-1, 2))
+
+    def _fundir(self, ms):
+        """Con 'reducir movimiento': todo aparece a la vez, solo cambia la opacidad."""
+        opacidad = salida_suave(ms / DURACION_FUNDIDO_MS)
+        colores = self.colores
+        rectangulos = self._elementos["rectangulos"]
+        rectangulos.set_facecolor(
+            to_rgba(colores["serie_azul"], ALFA_RELLENO * opacidad)
+        )
+        rectangulos.set_edgecolor(to_rgba(colores["serie_azul"], opacidad))
+        puntos = self._elementos["puntos"]
+        if puntos is not None:
+            puntos.set_alpha(opacidad)
+
+    # --- Textos ---------------------------------------------------------
+    def descripcion_accesible(self):
+        r = self.resultado
+        if r is None:
+            return (
+                "Gráfica de la función f(t) = R√(1 + cos²t) con R = "
+                f"{formatear_radio(self.radio)} centímetros. Aún no se ha calculado."
+            )
+        return (
+            f"Suma de Riemann con {r.n} rectángulos (punto medio). "
+            f"Suma igual a {formatear_decimal(r.perimetro)} centímetros."
+        )
+
+    # --- Dibujo -------------------------------------------------------------
+    def _dibujar(self, fig, colores, estilo):
+        radio, r = self.radio, self.resultado
+        eje = fig.add_subplot()
+        preparar_ejes_2d(eje, colores, estilo)
+        fig.set_facecolor(colores["fondo_grafica"])
+        # El título y la leyenda los pone la ventana, con letra de la interfaz
+
+        t = np.linspace(0, 2 * math.pi, 400)
+        eje.plot(
+            t,
+            funcion(t, radio),
+            color=colores["texto"],
+            linewidth=2 * estilo.lineas,
+            zorder=3,
+        )
+        self._dar_formato_ejes(eje, radio, estilo)
+        if r is None:
+            return {"rectangulos": None, "puntos": None}
+
+        rectangulos = PolyCollection(
+            vertices_de_barras(r.barras_inicio, r.barras_ancho, r.barras_altura),
+            facecolor=to_rgba(colores["serie_azul"], ALFA_RELLENO),
+            edgecolor=colores["serie_azul"],
+            zorder=2,
+            linewidth=(1 if len(r.barras_altura) <= 60 else 0.5) * estilo.lineas,
+        )
+        eje.add_collection(rectangulos)
+        puntos = None
+        if r.puntos_t is not None:  # con n > 120 no se dibujan puntos
+            puntos = eje.scatter(
+                r.puntos_t,
+                r.barras_altura,
+                zorder=4,
+                s=(5 * estilo.marcadores) ** 2,
+                color=colores["serie_naranja"],
+                linewidths=0,
+            )
+        return {"rectangulos": rectangulos, "puntos": puntos}
+
+    def _dar_formato_ejes(self, eje, radio, estilo):
+        eje.set_xlim(0, 2 * math.pi)
+        eje.set_xticks(
+            [0, math.pi / 2, math.pi, 3 * math.pi / 2, 2 * math.pi],
+            ["0", "π/2", "π", "3π/2", "2π"],
+        )
+        eje.set_ylim(0, 1.5 * radio)  # fijo: la altura es comparable entre cálculos
+        eje.yaxis.set_major_formatter(FORMATO_MARCAS)
+        eje.set_xlabel("t", fontsize=estilo.rotulo)
+        eje.set_ylabel("f(t)", fontsize=estilo.rotulo)

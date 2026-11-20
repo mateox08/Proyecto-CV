@@ -1,0 +1,116 @@
+"""El logo de la aplicación: la Ventana de Viviani vista de frente.
+
+Vista desde el eje X, la curva r(t) = (cos²t, sen t cos t, sen t) se ve como
+un "8": en pantalla se dibuja (y, z) = (sen t cos t, sen t). El cruce del 8 es
+el punto doble (R, 0, 0).
+
+Solo usa `math` y Qt (nada de numpy ni matplotlib) para poder dibujarse en
+cuanto arranca el programa, en la pantalla de carga.
+"""
+
+import math
+
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import (
+    QColor,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QRadialGradient,
+)
+
+CIAN = "#7DD3C0"
+VIOLETA = "#8FB8DE"
+ROSA = "#F28B6C"
+
+
+def _color(hexadecimal, alfa):
+    tono = QColor(hexadecimal)
+    tono.setAlphaF(alfa)
+    return tono
+
+
+def camino_curva(centro, radio, giro=0.0, puntos=240):
+    """La curva de Viviani girada `giro` radianes alrededor del eje Z."""
+    camino = QPainterPath()
+    inclinacion = math.radians(12)  # se mira un poco desde arriba
+    for i in range(puntos + 1):
+        t = 2 * math.pi * i / puntos
+        x, y, z = math.cos(t) ** 2, math.sin(t) * math.cos(t), math.sin(t)
+        # giro alrededor de Z y luego inclinación (igual que en curva3d.py)
+        x1 = x * math.cos(giro) - y * math.sin(giro)
+        y1 = x * math.sin(giro) + y * math.cos(giro)
+        vertical = -x1 * math.sin(inclinacion) + z * math.cos(inclinacion)
+        punto = QPointF(centro.x() + radio * y1, centro.y() - radio * vertical)
+        if i == 0:
+            camino.moveTo(punto)
+        else:
+            camino.lineTo(punto)
+    return camino
+
+
+def dibujar_logo(pintor, rect, giro=0.0, con_fondo=True):
+    """Dibuja el logo dentro de `rect` (un QRectF cuadrado)."""
+    pintor.save()
+    pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+    lado = min(rect.width(), rect.height())
+    centro = rect.center()
+
+    if con_fondo:
+        # Cuadrado redondeado azul noche con un borde cian muy tenue
+        fondo = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        fondo.setColorAt(0, QColor("#1A1D23"))
+        fondo.setColorAt(1, QColor("#0B0C0F"))
+        radio_esquina = 0.22 * lado
+        pintor.setPen(QPen(_color(CIAN, 0.35), max(1.0, lado / 128)))
+        pintor.setBrush(fondo)
+        pintor.drawRoundedRect(
+            rect.adjusted(1, 1, -1, -1), radio_esquina, radio_esquina
+        )
+
+    radio = 0.33 * lado
+
+    # Esfera: un círculo de vidrio con luz arriba a la izquierda
+    luz = QRadialGradient(centro + QPointF(-0.35 * radio, -0.4 * radio), 1.5 * radio)
+    luz.setColorAt(0, _color(CIAN, 0.22))
+    luz.setColorAt(1, _color(VIOLETA, 0.04))
+    pintor.setBrush(luz)
+    pintor.setPen(QPen(_color("#9FB4E0", 0.45), max(1.0, lado / 160)))
+    pintor.drawEllipse(centro, radio, radio)
+    # Ecuador como una elipse aplastada
+    pintor.setBrush(Qt.BrushStyle.NoBrush)
+    pintor.setPen(QPen(_color("#9FB4E0", 0.22), max(0.8, lado / 220)))
+    pintor.drawEllipse(centro, radio, 0.22 * radio)
+
+    # La curva con brillo: tres trazos superpuestos, de cian a violeta
+    camino = camino_curva(centro, radio, giro)
+    for grosor, alfa in ((0.07, 0.10), (0.035, 0.28), (0.016, 1.0)):
+        degradado = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        degradado.setColorAt(0, _color(CIAN, alfa))
+        degradado.setColorAt(1, _color(VIOLETA, alfa))
+        pluma = QPen(degradado, max(1.0, grosor * lado))
+        pluma.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pluma.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        pintor.setPen(pluma)
+        pintor.drawPath(camino)
+
+    # Punto doble en el cruce del 8, con un halo rosado
+    punto = camino_curva(centro, radio, giro, puntos=4).pointAtPercent(0)
+    pintor.setPen(Qt.PenStyle.NoPen)
+    for tamano, alfa in ((0.06, 0.25), (0.032, 1.0)):
+        pintor.setBrush(_color(ROSA, alfa))
+        pintor.drawEllipse(punto, tamano * lado, tamano * lado)
+    pintor.restore()
+
+
+def imagen_logo(lado):
+    """QImage cuadrada de `lado` píxeles con el logo (para iconos)."""
+    from PySide6.QtGui import QImage
+
+    imagen = QImage(lado, lado, QImage.Format.Format_ARGB32_Premultiplied)
+    imagen.fill(Qt.GlobalColor.transparent)
+    pintor = QPainter(imagen)
+    dibujar_logo(pintor, QRectF(0, 0, lado, lado))
+    pintor.end()
+    return imagen

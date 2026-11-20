@@ -1,0 +1,22 @@
+[project]
+name = "perimetro-viviani"
+version = "1.0.0"
+description = "Perímetro de la Ventana de Viviani con una suma de Riemann (ESPOL, Cálculo Vectorial)"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 88
+src = ["src", "."]
+extend-exclude = ["build", "dist", ".venv"]
+
+[tool.ruff.lint]
+# E/W: estilo, F: errores, I: orden de imports, B: fallos comunes, UP: Python moderno
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tabla de colores alineada a mano para que se lea mejor.
+"src/viviani/tema.py" = ["E241", "E501"]
+
+[tool.ruff.format]
+# Los dos archivos originales conservan sus comentarios alineados a mano.
+exclude = ["src/viviani/tema.py", "perimetro_viviani.py", "test_perimetro_viviani.py"]
