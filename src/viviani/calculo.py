@@ -1,6 +1,7 @@
 """Cálculo del perímetro de la Ventana de Viviani con numpy (sin Qt).
 
-Hace lo mismo que `suma_de_riemann` de perimetro_viviani.py, pero:
+Hace lo mismo que `suma_de_riemann` de perimetro_viviani.py (con punto
+medio), pero:
   - suma por bloques con numpy (mucho más rápido que un `for` de Python);
   - avisa el progreso y permite cancelar entre bloques;
   - además entrega los rectángulos que hay que dibujar.
@@ -11,20 +12,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from perimetro_viviani import (
-    MAX_SUBINTERVALOS,
-    METODOS_VALIDOS,
-    RAZON_REFERENCIA,
-    T_FINAL,
-    T_INICIAL,
-)
+from perimetro_viviani import MAX_SUBINTERVALOS, RAZON_REFERENCIA, T_FINAL, T_INICIAL
 
 MAX_BARRAS = 120  # rectángulos que se dibujan como máximo
 TAMANO_BLOQUE = 1_000_000  # subintervalos por bloque (progreso y cancelación)
-
-# Desplazamiento del punto de muestra dentro de cada subintervalo:
-# 0 -> extremo izquierdo, 1 -> extremo derecho, 0.5 -> punto medio
-DESPLAZAMIENTO = {"izquierda": 0.0, "derecha": 1.0, "punto_medio": 0.5}
 
 
 class CalculoCancelado(Exception):
@@ -35,7 +26,7 @@ class CalculoCancelado(Exception):
 class Resultado:
     radio: float
     n: int
-    metodo: str  # "izquierda" | "derecha" | "punto_medio"
+    metodo: str  # siempre "punto_medio"
     perimetro: float  # cm
     referencia: float  # RAZON_REFERENCIA * radio
     error_absoluto: float  # cm
@@ -57,72 +48,45 @@ def _validar(radio, n, metodo):
         raise ValueError(
             f"El número de subintervalos no debe superar {MAX_SUBINTERVALOS:,}."
         )
-    if metodo not in METODOS_VALIDOS:
-        raise ValueError(f"Método no válido. Opciones: {METODOS_VALIDOS}.")
+    if metodo != "punto_medio":
+        raise ValueError("Método no válido: solo se usa el punto medio.")
 
 
-def _revisar_cancelacion(cancelado):
-    if cancelado is not None and cancelado():
-        raise CalculoCancelado("Cálculo cancelado por el usuario.")
+def _suma_por_bloques(radio, n, grupos, progreso=None, cancelado=None):
+    """Suma f(t_i), con t_i el punto medio de cada subintervalo, por bloques.
 
-
-def _suma_por_bloques(radio, n, metodo, progreso=None, cancelado=None, grupos=0):
-    """Suma f(t_i) para i = 0..n-1 recorriendo el intervalo por bloques.
-
-    Si `grupos` > 0 también suma f dentro de cada grupo de subintervalos
-    (para las barras agrupadas), sin guardar los n valores.
-    Devuelve (suma_total, sumas_por_grupo o None).
+    También suma f dentro de cada uno de los `grupos` (las barras), sin
+    guardar los n valores. Con grupos == n cada grupo es un solo
+    subintervalo, así que esa suma ya es la altura de cada barra.
+    Devuelve (suma_total, sumas_por_grupo).
     """
     delta_t = (T_FINAL - T_INICIAL) / n
-    desplazamiento = DESPLAZAMIENTO[metodo]
-    sumas_bloque = []  # una suma parcial por bloque
-    sumas_grupo = np.zeros(grupos) if grupos else None
+    suma = 0.0  # un float de Python no lanza error al desbordar: queda inf
+    sumas_grupo = np.zeros(grupos)
 
     for inicio in range(0, n, TAMANO_BLOQUE):
-        _revisar_cancelacion(cancelado)
+        if cancelado is not None and cancelado():
+            raise CalculoCancelado("Cálculo cancelado por el usuario.")
         fin = min(inicio + TAMANO_BLOQUE, n)
         i = np.arange(inicio, fin)
-        t = T_INICIAL + (i + desplazamiento) * delta_t
-        with np.errstate(all="ignore"):  # que numpy no imprima avisos
-            f = radio * np.sqrt(1 + np.cos(t) ** 2)
-            sumas_bloque.append(float(np.sum(f)))
-        if grupos:
-            # El subintervalo i pertenece al grupo k que cumple
-            # floor(k*n/g) <= i < floor((k+1)*n/g)  (DISENO 6.3)
-            grupo = (grupos * (i + 1) + n - 1) // n - 1
-            sumas_grupo += np.bincount(grupo, weights=f, minlength=grupos)
+        f = radio * np.sqrt(1 + np.cos(T_INICIAL + (i + 0.5) * delta_t) ** 2)
+        suma += float(np.sum(f))
+        # El subintervalo i pertenece al grupo k que cumple
+        # floor(k*n/g) <= i < floor((k+1)*n/g)  (DISENO 6.3)
+        grupo = (grupos * (i + 1) + n - 1) // n - 1
+        sumas_grupo += np.bincount(grupo, weights=f, minlength=grupos)
         if progreso is not None:
             progreso(int(100 * fin / n))
 
-    try:
-        suma = math.fsum(sumas_bloque)
-    except OverflowError:
-        raise ValueError(
-            "El resultado es demasiado grande para representarse."
-        ) from None
     return suma, sumas_grupo
 
 
-def _error_relativo(perimetro, referencia):
-    return abs(perimetro - referencia) / referencia * 100
-
-
-def _barras_reales(radio, n, metodo):
-    """Las n barras tal cual (n <= MAX_BARRAS): ancho delta_t y altura f(t_i)."""
+def _barras(n, sumas_grupo):
+    """Una barra por grupo; la altura es el promedio de f en el grupo."""
     delta_t = (T_FINAL - T_INICIAL) / n
-    inicio = T_INICIAL + np.arange(n) * delta_t
-    puntos_t = inicio + DESPLAZAMIENTO[metodo] * delta_t
-    altura = radio * np.sqrt(1 + np.cos(puntos_t) ** 2)
-    return inicio, np.full(n, delta_t), altura, puntos_t
-
-
-def _barras_agrupadas(n, sumas_grupo):
-    """MAX_BARRAS barras; la altura es el promedio de f en cada grupo."""
-    delta_t = (T_FINAL - T_INICIAL) / n
-    k = np.arange(MAX_BARRAS)
-    i_ini = (k * n) // MAX_BARRAS
-    i_fin = ((k + 1) * n) // MAX_BARRAS - 1
-    cuantos = i_fin - i_ini + 1
+    k = np.arange(len(sumas_grupo))
+    i_ini = (k * n) // len(sumas_grupo)
+    cuantos = ((k + 1) * n) // len(sumas_grupo) - i_ini
     return T_INICIAL + i_ini * delta_t, cuantos * delta_t, sumas_grupo / cuantos
 
 
@@ -135,30 +99,26 @@ def calcular(radio, n, metodo="punto_medio", progreso=None, cancelado=None):
     _validar(radio, n, metodo)
     agrupado = n > MAX_BARRAS
     suma, sumas_grupo = _suma_por_bloques(
-        radio, n, metodo, progreso, cancelado, MAX_BARRAS if agrupado else 0
+        radio, n, min(n, MAX_BARRAS), progreso, cancelado
     )
     perimetro = suma * (T_FINAL - T_INICIAL) / n
     if not math.isfinite(perimetro):
         raise ValueError("El resultado es demasiado grande para representarse.")
 
-    if agrupado:
-        inicio, ancho, altura = _barras_agrupadas(n, sumas_grupo)
-        puntos_t = None
-    else:
-        inicio, ancho, altura, puntos_t = _barras_reales(radio, n, metodo)
-
+    inicio, ancho, altura = _barras(n, sumas_grupo)
     referencia = RAZON_REFERENCIA * radio
+    error_absoluto = abs(perimetro - referencia)
     return Resultado(
         radio=radio,
         n=n,
         metodo=metodo,
         perimetro=perimetro,
         referencia=referencia,
-        error_absoluto=abs(perimetro - referencia),
-        error_relativo=_error_relativo(perimetro, referencia),
+        error_absoluto=error_absoluto,
+        error_relativo=error_absoluto / referencia * 100,
         barras_inicio=inicio,
         barras_ancho=ancho,
         barras_altura=altura,
-        puntos_t=puntos_t,
+        puntos_t=None if agrupado else inicio + ancho / 2,
         agrupado=agrupado,
     )
