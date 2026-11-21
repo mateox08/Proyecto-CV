@@ -2,9 +2,9 @@
 
 Efecto "vidrio líquido": la tarjeta deja ver lo que hay detrás, pero
 desenfocado, con un borde luminoso y un reflejo en la parte de arriba.
-El desenfoque se consigue de forma muy simple: se dibuja en una imagen lo
-que hay detrás de la tarjeta (el fondo y la esfera), se achica mucho (pierde
-detalle) y se vuelve a agrandar suavizada.
+El desenfoque se consigue así: se dibuja en una imagen pequeña (1/6) lo que
+hay detrás de la tarjeta (el fondo y la esfera), se desenfoca promediando
+cada píxel con sus vecinos y se vuelve a agrandar suavizada.
 
 Esa imagen se rehace ~20 veces por segundo mientras el panel está abierto,
 así a través del vidrio se ve la curva girando. Es barato: solo se dibuja el
@@ -14,10 +14,12 @@ Se cierra con Esc, con el botón "Cerrar" o haciendo clic fuera de la
 tarjeta. Aparece y desaparece con un fundido corto.
 """
 
+import numpy as np
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer, QVariantAnimation
 from PySide6.QtGui import (
     QColor,
     QFont,
+    QImage,
     QLinearGradient,
     QPainter,
     QPainterPath,
@@ -49,9 +51,25 @@ PROFESORA = "Dra. Soveny Solís"
 DURACION_FUNDIDO_MS = 220
 ANCHO_TARJETA, ALTO_TARJETA = 400, 440
 RADIO = 28
-REDUCCION_DESENFOQUE = 18  # cuánto se achica la foto: más = más borroso
+RADIO_DESENFOQUE = 2  # px de la foto pequeña (x6 en pantalla): más = más borroso
 INTERVALO_VIVO_MS = 50  # cada cuánto se rehace el fondo del vidrio (20 por s)
 ESCALA_FOTO = 6  # el recorte se dibuja a 1/6 de su tamaño
+
+
+def _promedio_vecinos(datos, radio, eje):
+    """Cada píxel pasa a ser el promedio de sus 2*radio+1 vecinos en `eje`.
+
+    Con sumas acumuladas: cuesta lo mismo sea cual sea el radio. En los
+    bordes se repite el último píxel.
+    """
+    relleno = [(0, 0)] * datos.ndim
+    relleno[eje] = (radio + 1, radio)
+    suma = np.cumsum(np.pad(datos, relleno, mode="edge"), axis=eje)
+    largo = datos.shape[eje]
+    ventana = 2 * radio + 1
+    final = np.take(suma, range(ventana, ventana + largo), axis=eje)
+    inicio = np.take(suma, range(largo), axis=eje)
+    return (final - inicio) / ventana
 
 
 class _Logo(QWidget):
@@ -166,18 +184,28 @@ class PanelCreditos(QWidget):
         return self._desenfocar(foto, caja.size())
 
     def _desenfocar(self, foto, tamano):
-        """Achica más la foto y la agranda suavizada hasta `tamano`.
+        """Desenfoca la foto pequeña y la agranda suavizada hasta `tamano`.
 
-        Se agranda en dos pasos para que no se noten "cuadritos".
+        El desenfoque se hace sobre la foto pequeña (1/6), así cuesta muy poco:
+        tres pasadas de "promedio de vecinos" seguidas se parecen a un
+        desenfoque gaussiano. Como la imagen ya queda suave, al agrandarla no
+        se notan los "cuadritos" de la foto pequeña.
         """
+        imagen = foto.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+        ancho, alto = imagen.width(), imagen.height()
+        datos = np.frombuffer(imagen.constBits(), np.uint8)
+        datos = datos.reshape(alto, imagen.bytesPerLine() // 4, 4)[:, :ancho]
+        datos = datos.astype(np.float32)
+        for _ in range(3):
+            datos = _promedio_vecinos(datos, RADIO_DESENFOQUE, eje=0)
+            datos = _promedio_vecinos(datos, RADIO_DESENFOQUE, eje=1)
+        datos = np.ascontiguousarray(datos.round().astype(np.uint8))
+        imagen = QImage(datos.data, ancho, alto, ancho * 4, QImage.Format.Format_ARGB32)
+        foto = QPixmap.fromImage(imagen.copy())  # copy: no depender de `datos`
+
         suave = Qt.TransformationMode.SmoothTransformation
         libre = Qt.AspectRatioMode.IgnoreAspectRatio
-        reduccion = REDUCCION_DESENFOQUE // ESCALA_FOTO
-        foto = foto.scaled(
-            max(1, foto.width() // reduccion), max(1, foto.height() // reduccion),
-            libre, suave,
-        )  # fmt: skip
-        foto = foto.scaled(tamano.width() // 4, tamano.height() // 4, libre, suave)
+        foto = foto.scaled(tamano.width() // 2, tamano.height() // 2, libre, suave)
         proporcion = self.devicePixelRatioF()
         foto = foto.scaled(
             round(tamano.width() * proporcion), round(tamano.height() * proporcion),

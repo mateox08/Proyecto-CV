@@ -13,7 +13,7 @@ from viviani.calculo import (
     calcular,
 )
 
-METODOS = ("izquierda", "derecha", "punto_medio")
+METODOS = ("punto_medio",)  # el único que usa el programa
 
 
 class PruebasCoincidencia(unittest.TestCase):
@@ -51,15 +51,6 @@ class PruebasCoincidencia(unittest.TestCase):
         # Cada barra empieza donde termina la anterior
         np.testing.assert_allclose(r.barras_inicio[1:], fin[:-1], atol=1e-9)
 
-    def test_izquierda_y_derecha_valen_lo_mismo(self):
-        for n in (1, 10, 1000):
-            izq = calcular(1.0, n, "izquierda").perimetro
-            der = calcular(1.0, n, "derecha").perimetro
-            self.assertAlmostEqual(izq, der, places=9)
-        self.assertAlmostEqual(
-            calcular(1.0, 1000, "izquierda").perimetro, RAZON_REFERENCIA, places=9
-        )
-
     def test_errores_contra_la_referencia(self):
         r = calcular(2.0, 100)
         self.assertAlmostEqual(r.referencia, 2 * RAZON_REFERENCIA)
@@ -79,6 +70,7 @@ class PruebasValidacion(unittest.TestCase):
             (1.0, True, "punto_medio"),
             (1.0, 10_000_001, "punto_medio"),
             (1.0, 10, "trapecio"),
+            (1.0, 10, "izquierda"),
             (1e308, 10, "punto_medio"),
         ]
         for radio, n, metodo in casos:
