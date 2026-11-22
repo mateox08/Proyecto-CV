@@ -1,8 +1,8 @@
 """Hoja de estilos (QSS) de la aplicación, armada con los colores de tema.py.
 
 QSS es el "CSS" de Qt: dice de qué color y forma se dibuja cada control.
-El fondo, el botón orbe y las líneas de los campos se dibujan a mano
-(componentes.py); aquí solo se estilizan textos, cajas y botones simples.
+El fondo, el botón Calcular y las cajas de los datos se dibujan a mano
+(componentes.py); aquí solo se estilizan textos, chips y botones simples.
 """
 
 from viviani.tema import rgba
@@ -30,15 +30,11 @@ def hoja_de_estilos(c):
         border-radius: 12px;
         padding: 10px 14px;
     }}
-    QLabel#chip {{
+    QLabel[rol="formula"] {{
         color: {c["texto_sec"]};
-        border: 1px solid {c["borde"]};
-        border-radius: 13px;
-        padding: 4px 12px;
-        background: {rgba(c["superficie"], 0.6)};
     }}
 
-    QLineEdit#linea {{
+    QLineEdit#dato {{
         background: transparent;
         border: none;
         padding: 0px;
@@ -47,34 +43,45 @@ def hoja_de_estilos(c):
         selection-color: {c["texto"]};
     }}
 
-    QPushButton#fantasma {{
-        background: {rgba(c["superficie"], 0.5)};
+    QPushButton#chip {{
+        background: {rgba(c["superficie"], 0.7)};
         border: 1px solid {c["borde"]};
-        border-radius: 16px;
+        border-radius: 13px;
         color: {c["texto_sec"]};
-        padding: 6px 16px;
+        padding: 4px 12px;
+        min-height: 18px;
     }}
-    QPushButton#fantasma:hover {{
+    QPushButton#chip:hover {{
         border-color: {c["acento"]};
+        color: {c["texto"]};
+    }}
+    QPushButton#chip:focus {{
+        border-color: {c["acento"]};
+    }}
+    QPushButton#chip:checked {{
+        background: {rgba(c["acento"], 0.12)};
+        border-color: {rgba(c["acento"], 0.55)};
         color: {c["acento"]};
-        background: {rgba(c["acento"], 0.08)};
-    }}
-    QPushButton#fantasma:focus {{
-        border-color: {c["acento"]};
     }}
 
     QPushButton#enlace {{
         background: transparent;
-        border: none;
+        border: 1px solid transparent;
+        /* Qt no redondea si el radio pasa de la mitad del alto: por eso el
+           alto mínimo (18 + 2·5 de relleno + 2 de borde = 30 px) */
+        border-radius: 13px;
+        min-height: 18px;
         color: {c["texto_sec"]};
-        padding: 4px 6px;
+        padding: 5px 14px;
     }}
     QPushButton#enlace:hover {{
-        color: {c["acento"]};
+        color: {c["texto"]};
+        border-color: {c["borde"]};
+        background: {rgba(c["superficie"], 0.6)};
     }}
     QPushButton#enlace:focus {{
         color: {c["acento"]};
-        text-decoration: underline;
+        border-color: {rgba(c["acento"], 0.6)};
     }}
 
     QToolTip {{

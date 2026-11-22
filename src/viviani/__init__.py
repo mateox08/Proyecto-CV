@@ -4,10 +4,11 @@ Organización del paquete (ver docs/EXPLICACION.md):
 
     calculo.py      Cálculo numérico por bloques (numpy), sin interfaz.
     validacion.py   Revisión de los textos que escribe el usuario, sin interfaz.
-    formato.py      Números con coma decimal y notación científica.
-    tema.py         Colores y medidas del modo claro y oscuro.
+    formato.py      Números con punto decimal, notación científica y cifras.
+    tema.py         Colores y fuentes del tema oscuro.
     sonido.py       Sonidos sintetizados por código.
-    graficas/       Las tres gráficas (matplotlib).
+    animacion.py    Animaciones por tiempo real (solo Qt).
+    graficas/       La curva 3D y la suma de Riemann (QPainter).
     ui/             Ventana, controles e hilo de cálculo (PySide6).
     app.py          Punto de entrada: une todas las piezas.
 

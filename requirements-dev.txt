@@ -3,3 +3,4 @@
 pyinstaller==6.22.3
 scipy==1.18.1      # solo para verificar el valor de control 7,640395578·R
 ruff==0.17.5
+pillow==13.0.0     # solo para scripts/generar_icono.py (el .ico con varios tamaños)

@@ -1,5 +1,12 @@
 # Especificación de diseño: Perímetro de la Ventana de Viviani
 
+> **Nota (2026-11-21, versión 3):** el diseño vigente es el de la versión 3
+> (ver ADR-002 en `docs/decisiones.md`): distribución orbital con tarjetas de
+> vidrio, tema oscuro plateado, gráficas dibujadas con
+> QPainter (sin matplotlib), escena 3D con cilindro, cometa y puntos de
+> muestra, fórmulas dibujadas con su propio motor, cifras correctas
+> resaltadas y créditos de vidrio en vivo. Lo que sigue es histórico.
+>
 > **Nota (2026-11-19):** esta especificación describe el primer diseño. El
 > diseño actual la reemplaza en estos puntos: tema claro único inspirado en
 > tarjetas de vidrio con brillo al pasar el mouse; sin gráfica de convergencia;

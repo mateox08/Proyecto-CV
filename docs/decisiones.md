@@ -188,3 +188,135 @@ Negativas:
 3. `pyinstaller --onefile --windowed` y `--onedir`; ejecutar ambos en esta PC y en la de otro integrante sin Python.
 4. Anotar en este archivo, reemplazando "estimado" por "medido": tamaño del `.exe`, tiempo de arranque, fps de la animación y tiempo del cálculo con n = 10 000 000.
 5. Si falla el paso 3, activar el Plan B de R1 antes de escribir más código de interfaz.
+
+---
+
+## ADR-002: Versión 3, todo dibujado con QPainter (sin matplotlib)
+
+| Campo | Valor |
+|---|---|
+| Estado | Aceptada |
+| Fecha | 2026-11-21 |
+| Rama | `v3` |
+| Alcance | Gráfica de Riemann, dependencias, empaquetado, diseño visual |
+
+### Contexto
+
+En la versión 2 la curva 3D ya se dibujaba a mano con QPainter (matplotlib 3D
+era demasiado lento) y matplotlib quedaba solo para la gráfica de Riemann.
+Eso obligaba a mantener un lienzo especial (`lienzo.py`) con varios arreglos:
+fondo transparente, `WA_OpaquePaintEvent` desactivado, `paintEvent` propio
+para evitar rayas con escalado de 125 %, blitting para animar y `unittest`
+dentro del `.exe` porque pyparsing (de matplotlib) lo importa. Además
+matplotlib era la importación más lenta del arranque.
+
+### Decisión
+
+La gráfica de Riemann también se dibuja con QPainter (`graficas/riemann.py`)
+y matplotlib deja de ser dependencia. Lo que se gana:
+
+- Se borran `lienzo.py` y `estilo.py`, y con ellos todos los arreglos de arriba
+  (QPainter dibuja directo sobre el widget: no hay buffer que se desalinee).
+- Arranque más rápido y `.exe` más liviano. Medido el 2026-11-21: onedir de
+  84.4 MB (33.6 MB en zip) y onefile de 33.5 MB, frente a 104.9 MB
+  (45.7 MB) y 45.5 MB de la versión 2.
+- Animación a 60 cuadros por segundo con el mismo reloj (`animacion.py`)
+  que el resto de la interfaz.
+- Interacción que matplotlib hacía difícil: lectura de cada barra al pasar
+  el mouse, enlazada con la curva 3D (señal `t_resaltado`).
+
+Otras decisiones de la versión 3:
+
+- Tema "observatorio" (azul noche con estrellas y un degradado azul cielo →
+  lavanda), luego reemplazado por tres paletas (ver la revisión más abajo).
+- La escena 3D muestra el cilindro (x − R/2)² + y² = (R/2)² (la curva es su
+  intersección con la esfera), un cometa que recorre la curva en el sentido
+  de t, sombreado por 6 niveles de profundidad y, tras calcular, los puntos
+  r(tᵢ) sincronizados con los rectángulos (`graficas/barrido.py`). Las capas
+  malla, cilindro y ejes se pueden ocultar. La curva sigue sin poder
+  arrastrarse.
+- El perímetro muestra en blanco las cifras que coinciden con el valor de
+  control y en ámbar las demás, con un medidor de 16 cifras correctas.
+- Atajos de n (4, 10, 20, 100, 10⁶) y ↑/↓ en el campo n para multiplicar o
+  dividir por 10. No hay textos de ayuda bajo los campos (las indicaciones de
+  teclado van en las descripciones emergentes).
+- Sonidos con timbre de campana (parciales no enteros), sintetizados con
+  numpy; se agrega uno para abrir los créditos. Siguen siempre activos.
+- `Sonidos` pierde `activado`/`establecer_activado` y `calcular` pierde el
+  parámetro `metodo`: no había interruptor ni selector que los usara.
+- Corrección: el vidrio de los créditos renderizaba la escena con el fondo de
+  ventana de la paleta, que en Windows con modo claro es casi blanco; ahora se
+  renderiza solo con `DrawChildren`.
+
+### Consecuencias
+
+- El código de las gráficas es más largo de escribir a mano (ejes, marcas,
+  textos), pero se explica igual que la curva 3D: rectángulos y líneas.
+- `pillow` pasa a ser solo dependencia de desarrollo (para generar el `.ico`).
+
+### Revisión tras probar la versión 3 (2026-11-21)
+
+Comentarios del grupo y cambios:
+
+- "Más creatividad en la distribución": se pasa a una **distribución
+  orbital**. La esfera es el centro; a su alrededor hay un anillo con marcas
+  de instrumento que gira despacio y un satélite. Las cuatro partes (Datos,
+  Fórmula, Resultado, Suma de Riemann) son tarjetas de vidrio en las
+  esquinas, atadas al anillo con hilos por los que viaja un destello al
+  calcular. La ecuación r(t) pasa al encabezado. Tamaño mínimo: 1100×720.
+- "Prohibido el típico cian-morado": se reemplaza por **tres paletas**
+  elegibles y guardadas con QSettings: Eclipse (oro y brasa, la inicial),
+  Jade (verde y lima) y Plata (monocromo con naranja de señal). `tema.paleta()`
+  devuelve un único diccionario que `tema.usar()` rellena, así cambiar de
+  paleta es repintar.
+- "Los sonidos no gustaron del todo": de campana de vidrio a **marimba**
+  (parciales 1, 3.93 y 9.2), más grave y cálida; los créditos suenan con un
+  acorde de aire con efecto coro.
+- **Pulsación de luz** en cada clic (`CapaPulsos`, composición en modo suma).
+- Se quita "Cálculo Vectorial · ESPOL" del encabezado.
+- **Fórmulas**: el QLabel con HTML recortaba el exponente de cos²t y
+  confundía los límites. Se escribe un pequeño motor de cajas
+  (`ui/formula.py`) con límites apilados, fracciones y raíz.
+- La "t" del eje de Riemann tapaba "2π": ahora va a la derecha del eje, y la
+  leyenda se dibuja dentro de la gráfica (sigue la paleta).
+
+Segunda revisión (2026-11-21):
+
+- Se queda **solo el tema plateado** (la antigua paleta "Plata"); se quitan
+  Eclipse, Jade, el selector y el guardado con QSettings. `tema.py` vuelve a
+  tener una sola tabla de colores.
+- Se quitan los atajos de n (4, 10, 20, 100, 10⁶) y el subtítulo "Cálculo
+  Vectorial · ESPOL · 2026" de los créditos.
+- **Créditos sin tirones**: el fundido usaba un `QGraphicsOpacityEffect`
+  sobre un panel del tamaño de la ventana, que obliga a redibujar todo (la
+  escena 3D incluida) fuera de pantalla en cada cuadro (~38 ms medidos).
+  Primero se probó congelar una foto de toda la ventana durante el fundido,
+  pero la esfera se detenía un instante y, al cerrar, el texto de la tarjeta
+  quedaba en la foto y se veía después que el vidrio. La solución final: el
+  panel es opaco y arma lo de atrás por capas (cielo, escena 3D en vivo
+  recortada a su cuadrado, foto de las tarjetas laterales, velo) y la
+  tarjeta se desvanece como una sola imagen. Medido: un cuadro con el panel
+  abierto cuesta lo mismo que sin él (la escena 3D sigue girando).
+- **Pulsos más chicos** (radio 90 px, 520 ms) y más livianos: la escena 3D,
+  si Qt le pide repintar una zona que no toca la esfera, ya no recalcula la
+  escena: solo dibuja los hilos.
+- El sonido de clic (el que sonaba al cambiar de paleta) suena ahora en todos
+  los botones: Calcular, Créditos, Cerrar y las capas.
+- **Tercera revisión de los créditos**: el grupo seguía notando tirones y,
+  con la pantalla al 125 %, la foto de las tarjetas salía agrandada (el
+  rectángulo de origen de `drawPixmap` va en píxeles físicos). Se quita por
+  completo el vidrio líquido (desenfoque, velo y capas): ahora es una
+  tarjeta sólida cuyo contenido es opaco, y el fundido anima solo su foto.
+  La causa de fondo de los tirones era otra: cualquier repintado sobre la
+  esfera (la tarjeta semitransparente, las ondas de los clics) obligaba a
+  recalcular la escena 3D además de su propio cuadro. La escena guarda ahora
+  su último cuadro en una imagen y solo recalcula las zonas que cambiaron;
+  medido: un cuadro del fundido pasó de 25 ms a 1.2 ms.
+- El logo de los créditos queda quieto. Las variables en cursiva de las
+  fórmulas (r, f, t) llevan un pequeño margen a los lados para no montarse
+  sobre los paréntesis, y los subíndices se acercan a su letra.
+- Al guardar el cuadro de la escena 3D en una imagen, el cielo con estrellas
+  desapareció: la imagen se creaba sin canal alfa y lo "transparente" salía
+  negro. Se llena de transparente al crearla.
+- Los botones píldora no se veían redondeados: Qt ignora un `border-radius`
+  mayor que la mitad del alto; se fijó un alto mínimo.

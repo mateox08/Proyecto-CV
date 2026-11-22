@@ -8,14 +8,15 @@ Cada pieza vive en su propio módulo y no conoce a las demás:
     ui        -> la ventana: recibe todo lo anterior ya construido
 
 Arranque por etapas: primero se muestra la pantalla de carga (solo necesita
-Qt) y después se importan las librerías pesadas (numpy, matplotlib),
-avisando el avance. Por eso esas importaciones están dentro de las
-funciones y no al principio del archivo.
+Qt) y después se importa numpy y se arma la ventana, avisando el avance.
+Por eso esas importaciones están dentro de las funciones y no al principio
+del archivo.
 """
 
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QEvent
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -35,24 +36,24 @@ def crear_ventana(avisar=None):
 
     avisar(0.15, "Preparando el cálculo…")
     from viviani.calculo import calcular
+
+    avisar(0.35, "Afinando los sonidos…")
     from viviani.sonido import Sonidos
 
-    avisar(0.40, "Preparando las gráficas…")
-    import matplotlib
+    sonidos = Sonidos()  # los sonidos siempre están activos
 
-    matplotlib.use("QtAgg")  # la gráfica de Riemann va dentro de la ventana
+    avisar(0.55, "Preparando las gráficas…")
     from viviani.graficas import GraficaCurva3D, GraficaRiemann
 
-    avisar(0.70, "Armando la ventana…")
+    avisar(0.75, "Armando la ventana…")
     from viviani.ui.ventana import VentanaPrincipal
 
     colores = tema.paleta()
     ventana = VentanaPrincipal(
         # Si Windows tiene las animaciones desactivadas, la curva no gira
         grafica_3d=GraficaCurva3D(colores, sistema.reducir_movimiento()),
-        # letra algo menor: la gráfica de Riemann ahora es compacta
-        grafica_riemann=GraficaRiemann(colores, 0.88 * sistema.factor_de_texto()),
-        sonidos=Sonidos(activado=True),  # los sonidos siempre están activos
+        grafica_riemann=GraficaRiemann(colores, sistema.factor_de_texto()),
+        sonidos=sonidos,
         calcular=calcular,
     )
     avisar(0.90, "Dibujando…")
@@ -90,7 +91,12 @@ def main():
     carga.raise_()
     carga.terminar()
 
-    sys.exit(app.exec())
+    codigo = app.exec()
+    # La ventana se destruye aquí, con Qt todavía en pie. Si quedara viva
+    # hasta que Python termina, Qt podría fallar al cerrar el proceso.
+    ventana.deleteLater()
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    sys.exit(codigo)
 
 
 if __name__ == "__main__":

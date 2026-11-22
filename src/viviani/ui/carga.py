@@ -1,15 +1,16 @@
 """Pantalla de carga: aparece en cuanto se abre el programa.
 
-Cargar numpy y matplotlib tarda uno o dos segundos. En vez de dejar la
-pantalla vacía, se muestra esta tarjeta con el logo girando, una barra que
-avanza y el paso actual ("Preparando las gráficas…").
+Cargar numpy y armar la ventana tarda un momento. En vez de dejar la
+pantalla vacía, se muestra esta tarjeta donde la propia curva de Viviani hace
+de barra de progreso: se va trazando de t = 0 a t = 2π a medida que avanza
+la carga, mientras gira despacio.
 
 Solo usa Qt y el logo (nada pesado), para poder mostrarse de inmediato.
 """
 
 import math
 
-from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, QVariantAnimation
+from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -21,10 +22,12 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QWidget
 
 from viviani import tema
+from viviani.animacion import Animacion, salida_suave
 from viviani.ui.logo import dibujar_logo
 
-ANCHO, ALTO = 460, 300
-DURACION_FUNDIDO_MS = 220
+ANCHO, ALTO = 460, 320
+DURACION_CIERRE_MS = 650  # termina de trazar la curva (400 ms) y se desvanece
+SEGUIMIENTO = 0.18  # qué tanto se acerca el trazo al avance real en cada cuadro
 
 
 class PantallaCarga(QWidget):
@@ -39,36 +42,45 @@ class PantallaCarga(QWidget):
         self.setWindowTitle("Cargando…")
         self.setFixedSize(ANCHO, ALTO)
         self.colores = tema.paleta()
-        self._fraccion = 0.0  # avance de la barra (0 a 1)
+        self._fraccion = 0.0  # avance real de la carga (0 a 1)
+        self._trazo = 0.0  # parte de la curva ya dibujada (persigue al avance)
         self._texto = "Iniciando…"
+        self._trazo_al_cerrar = 0.0
         self._reloj = QElapsedTimer()
         self._reloj.start()
-        # El logo gira mientras el programa tenga tiempo de repintar
+        # La curva gira mientras el programa tenga tiempo de repintar
         self._tic = QTimer(self)
         self._tic.setInterval(16)
-        self._tic.timeout.connect(self.update)
+        self._tic.timeout.connect(self._avanzar_trazo)
         self._tic.start()
+        self._cierre = Animacion(self, self._al_cerrar, self.close)
 
         pantalla = QApplication.primaryScreen().availableGeometry()
         self.move(pantalla.center() - self.rect().center())
 
     def avanzar(self, fraccion, texto):
-        """Mueve la barra y cambia el texto; deja que la pantalla se repinte."""
+        """Mueve el avance y cambia el texto; deja que la pantalla se repinte."""
         self._fraccion = fraccion
         self._texto = texto
+        self._avanzar_trazo()
         self.repaint()
         QApplication.processEvents()
 
     def terminar(self):
-        """Se desvanece y se cierra."""
+        """Completa la curva, se desvanece y se cierra."""
         self._tic.stop()
-        fundido = QVariantAnimation(self)
-        fundido.setDuration(DURACION_FUNDIDO_MS)
-        fundido.setStartValue(1.0)
-        fundido.setEndValue(0.0)
-        fundido.valueChanged.connect(lambda v: self.setWindowOpacity(float(v)))
-        fundido.finished.connect(self.close)
-        fundido.start()
+        self._trazo_al_cerrar = self._trazo
+        self._cierre.iniciar(DURACION_CIERRE_MS)
+
+    def _avanzar_trazo(self):
+        self._trazo += (self._fraccion - self._trazo) * SEGUIMIENTO
+        self.update()
+
+    def _al_cerrar(self, ms):
+        completar = salida_suave(ms / 400)
+        self._trazo = self._trazo_al_cerrar + (1 - self._trazo_al_cerrar) * completar
+        self.setWindowOpacity(1 - salida_suave((ms - 400) / 250))
+        self.update()
 
     def paintEvent(self, _evento):
         c = self.colores
@@ -76,19 +88,19 @@ class PantallaCarga(QWidget):
         pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
         caja = QRectF(self.rect()).adjusted(8, 8, -8, -8)
 
-        # Tarjeta oscura con una aurora cian arriba
+        # Tarjeta oscura con un resplandor del segundo acento arriba
         fondo = QLinearGradient(caja.topLeft(), caja.bottomLeft())
         fondo.setColorAt(0, QColor(c["fondo_2"]))
         fondo.setColorAt(1, QColor(c["fondo"]))
         borde = QColor(c["acento"])
-        borde.setAlphaF(0.35)
+        borde.setAlphaF(0.30)
         pintor.setPen(QPen(borde, 1))
         pintor.setBrush(fondo)
         pintor.drawRoundedRect(caja, 24, 24)
         aurora = QRadialGradient(
             QPointF(caja.center().x(), caja.top()), 0.7 * caja.width()
         )
-        tono = QColor(c["acento"])
+        tono = QColor(c["acento_2"])
         tono.setAlphaF(0.16)
         aurora.setColorAt(0, tono)
         tono.setAlphaF(0.0)
@@ -97,51 +109,43 @@ class PantallaCarga(QWidget):
         pintor.setBrush(aurora)
         pintor.drawRoundedRect(caja, 24, 24)
 
-        # Logo girando (una vuelta cada 4 s)
-        giro = 2 * math.pi * self._reloj.elapsed() / 4000
-        lado = 104
+        # La curva se traza con el avance y gira (una vuelta cada 5 s)
+        giro = 2 * math.pi * self._reloj.elapsed() / 5000
+        lado = 138
         dibujar_logo(
             pintor,
-            QRectF(caja.center().x() - lado / 2, caja.top() + 30, lado, lado),
+            QRectF(caja.center().x() - lado / 2, caja.top() + 22, lado, lado),
             giro=giro,
             con_fondo=False,
+            fraccion=max(self._trazo, 0.002),
         )
 
-        # Título y paso actual
+        # Título, paso actual y porcentaje
         titulo = QFont()
         titulo.setFamilies(tema.FAMILIAS_TITULO)
         titulo.setPointSizeF(19)
+        titulo.setWeight(QFont.Weight.Light)
         pintor.setFont(titulo)
         pintor.setPen(QColor(c["texto"]))
         pintor.drawText(
-            QRectF(caja.left(), caja.top() + 146, caja.width(), 34),
+            QRectF(caja.left(), caja.top() + 172, caja.width(), 36),
             Qt.AlignmentFlag.AlignCenter,
             "Ventana de Viviani",
         )
         paso = QFont()
         paso.setFamilies(tema.FAMILIAS_MONO)
         paso.setPointSizeF(8.5)
-        paso.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
+        paso.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.2)
         pintor.setFont(paso)
         pintor.setPen(QColor(c["etiqueta"]))
         pintor.drawText(
-            QRectF(caja.left(), caja.top() + 214, caja.width(), 20),
+            QRectF(caja.left(), caja.top() + 222, caja.width(), 20),
             Qt.AlignmentFlag.AlignCenter,
             self._texto,
         )
-
-        # Barra de avance con degradado cian-violeta
-        x0, y = caja.left() + 70, caja.top() + 196
-        largo = caja.width() - 140
-        pintor.setPen(
-            QPen(QColor(c["borde"]), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        pintor.setPen(QColor(c["acento"]))
+        pintor.drawText(
+            QRectF(caja.left(), caja.top() + 246, caja.width(), 20),
+            Qt.AlignmentFlag.AlignCenter,
+            f"t = {2 * self._trazo:.2f}π",
         )
-        pintor.drawLine(QPointF(x0, y), QPointF(x0 + largo, y))
-        if self._fraccion > 0:
-            degradado = QLinearGradient(x0, 0, x0 + largo, 0)
-            degradado.setColorAt(0, QColor(c["acento"]))
-            degradado.setColorAt(1, QColor(c["violeta"]))
-            pintor.setPen(
-                QPen(degradado, 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
-            )
-            pintor.drawLine(QPointF(x0, y), QPointF(x0 + largo * self._fraccion, y))

@@ -20,13 +20,30 @@ class PruebasFormato(unittest.TestCase):
         self.assertEqual(formato.formatear_radio(5.0), "5")
         self.assertEqual(formato.formatear_radio(7.5), "7.5")
 
+    def test_con_exponente(self):
+        self.assertEqual(
+            formato.con_exponente("7.105 × 10⁻¹⁵ cm"), "7.105 × 10<sup>−15</sup> cm"
+        )
+        self.assertEqual(formato.con_exponente("0.05000 %"), "0.05000 %")
+
+    def test_cifras_correctas(self):
+        self.assertEqual(formato.cifras_correctas(0.0), 16)
+        self.assertEqual(formato.cifras_correctas(1e-3), 5)  # 0.001 % = 10⁻⁵
+        self.assertEqual(formato.cifras_correctas(17.8), 0)
+        self.assertEqual(formato.cifras_correctas(1e-30), 16)
+
+    def test_prefijo_comun(self):
+        self.assertEqual(formato.prefijo_comun("38.201673", "38.201978"), 6)
+        self.assertEqual(formato.prefijo_comun("38.2", "38.2"), 4)
+
 
 class PruebasContraste(unittest.TestCase):
     """Contraste WCAG AA: 4,5 a 1 para el texto sobre su fondo."""
 
     PARES = [
         ("texto", "fondo"), ("texto", "superficie"), ("texto_sec", "superficie"),
-        ("etiqueta", "superficie"), ("texto_sobre_acento", "acento"),
+        ("etiqueta", "superficie"), ("etiqueta", "fondo"),
+        ("texto_sobre_acento", "acento"), ("texto_sobre_acento", "acento_2"),
         ("error", "superficie"), ("error", "fondo_error"),
     ]  # fmt: skip
 
