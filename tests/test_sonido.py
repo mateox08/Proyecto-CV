@@ -29,9 +29,10 @@ def _dbfs(muestras):
 
 class PruebasSintesis(unittest.TestCase):
     CASOS = (
-        ("clic", sonido.sintetizar_clic, 0.045, -24),
-        ("resultado", sonido.sintetizar_resultado, 0.250, -20),
-        ("error", sonido.sintetizar_error, 0.280, -22),
+        ("clic", sonido.sintetizar_clic, 0.070, -24),
+        ("resultado", sonido.sintetizar_resultado, 0.900, -20),
+        ("error", sonido.sintetizar_error, 0.320, -22),
+        ("creditos", sonido.sintetizar_creditos, 1.400, -26),
     )
 
     def test_formato_duracion_y_nivel(self):
@@ -77,29 +78,18 @@ class PruebasSonidos(unittest.TestCase):
         self.addCleanup(sonidos.cerrar)
         return sonidos, reproductor
 
-    def test_reproduce_cuando_esta_activado(self):
+    def test_reproduce_el_clic(self):
         sonidos, reproductor = self.crear()
         sonidos.clic()
         reproductor.esperar()
         self.assertEqual(len(reproductor.llamadas), 1)
         self.assertEqual(reproductor.llamadas[0], sonido.sintetizar_clic())
 
-    def test_no_reproduce_si_esta_desactivado(self):
-        sonidos, reproductor = self.crear(activado=False)
-        self.assertFalse(sonidos.activado)
-        sonidos.clic()
-        sonidos.resultado()
-        sonidos.error()
-        time.sleep(0.3)
-        self.assertEqual(reproductor.llamadas, [])
-
-    def test_establecer_activado(self):
-        sonidos, reproductor = self.crear(activado=False)
-        sonidos.establecer_activado(True)
-        self.assertTrue(sonidos.activado)
-        sonidos.error()
+    def test_cada_sonido_tiene_su_wav(self):
+        sonidos, reproductor = self.crear()
+        sonidos.creditos()
         reproductor.esperar()
-        self.assertEqual(len(reproductor.llamadas), 1)
+        self.assertEqual(reproductor.llamadas, [sonido.sintetizar_creditos()])
 
     def test_antirrepeticion(self):
         sonidos, reproductor = self.crear()
@@ -146,7 +136,7 @@ class PruebasSonidos(unittest.TestCase):
         sonidos.clic()
         sonidos.resultado()
         sonidos.error()
-        sonidos.establecer_activado(False)
+        sonidos.creditos()
         sonidos.cerrar()
         self.assertEqual(reproductor.llamadas, [])
 

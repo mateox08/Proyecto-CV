@@ -3,14 +3,14 @@
 Este módulo no depende de la interfaz: solo convierte números en texto.
 """
 
+import math
+
 ESPACIO_FINO = " "  # separador de miles que no parte la línea: 10 000 000
 _SUPERINDICES = str.maketrans("-0123456789", "⁻⁰¹²³⁴⁵⁶⁷⁸⁹")
-
-NOMBRES_METODO = {
-    "izquierda": "izquierda",
-    "derecha": "derecha",
-    "punto_medio": "punto medio",
-}
+# Superíndices -> texto normal, para escribirlos con <sup> (HTML). La fuente
+# de la interfaz no tiene el signo menos en superíndice "⁻".
+_NORMALES = str.maketrans("⁻⁰¹²³⁴⁵⁶⁷⁸⁹", "−0123456789")
+CIFRAS_MAXIMAS = 16  # lo que distingue un número decimal (float) de 64 bits
 
 
 def formatear_decimal(valor, decimales=6):
@@ -56,6 +56,35 @@ def formatear_radio(radio):
     return f"{radio:.6f}".rstrip("0").rstrip(".")
 
 
-def nombre_metodo(metodo):
-    """Nombre legible del método. Ej.: 'punto_medio' -> 'punto medio'."""
-    return NOMBRES_METODO[metodo]
+def con_exponente(texto):
+    """'7.105 × 10⁻¹⁵ cm' -> '7.105 × 10<sup>−15</sup> cm' (para un QLabel)."""
+    if "× 10" not in texto:
+        return texto
+    antes, despues = texto.split("× 10", 1)
+    exponente = ""
+    while despues and despues[0] in "⁻⁰¹²³⁴⁵⁶⁷⁸⁹":
+        exponente += despues[0]
+        despues = despues[1:]
+    return f"{antes}× 10<sup>{exponente.translate(_NORMALES)}</sup>{despues}"
+
+
+def cifras_correctas(error_relativo):
+    """Cifras significativas en que coinciden la aproximación y el valor de control.
+
+    error_relativo viene en porcentaje. Un error relativo de 10⁻⁵ (0.001 %)
+    son 5 cifras correctas. Error cero: todas las que caben en un float (16).
+    """
+    if error_relativo <= 0:
+        return CIFRAS_MAXIMAS
+    cifras = math.floor(-math.log10(error_relativo / 100))
+    return min(max(cifras, 0), CIFRAS_MAXIMAS)
+
+
+def prefijo_comun(texto_a, texto_b):
+    """Cuántos caracteres iniciales coinciden. Ej.: ('38.2019', '38.2020') -> 6."""
+    cantidad = 0
+    for a, b in zip(texto_a, texto_b, strict=False):
+        if a != b:
+            break
+        cantidad += 1
+    return cantidad

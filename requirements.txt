@@ -1,5 +1,4 @@
 # Dependencias de ejecución (lo que va dentro del .exe).
 # Las versiones exactas de TODO lo instalado quedan en requirements-lock.txt.
 PySide6-Essentials==6.12.0
-matplotlib==3.11.2
 numpy==2.5.5

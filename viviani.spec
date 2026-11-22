@@ -34,43 +34,26 @@ ICONO = str(RAIZ / "src" / "viviani" / "recursos" / "icono.ico")
 
 # --- Qué NO se incluye -----------------------------------------------------
 EXCLUIR = [
-    # Toolkits y bibliotecas que la app no usa (scipy y tkinter sí están
-    # instalados en .venv y PyInstaller los arrastraría).
-    "tkinter", "_tkinter", "scipy",
-    # OJO: "unittest" NO se excluye: pyparsing (lo usa matplotlib) lo importa.
+    # Bibliotecas que la app no usa pero están instaladas en .venv (scipy
+    # para verificar el valor de control, Pillow para generar el icono,
+    # matplotlib de la versión 2): PyInstaller podría arrastrarlas.
+    "tkinter", "_tkinter", "scipy", "PIL", "matplotlib",
     "pydoc", "test", "distutils", "setuptools",
     "pkg_resources", "IPython", "pytest",
-    # Pruebas internas de numpy / matplotlib.
-    "numpy.testing", "numpy.tests", "matplotlib.tests", "matplotlib.testing",
-    "mpl_toolkits.tests",
-    # Backends de matplotlib distintos de QtAgg/Agg (la app fija QtAgg;
-    # Agg se conserva porque QtAgg y el guardado de PNG se apoyan en él).
-    "matplotlib.backends.backend_tkagg", "matplotlib.backends.backend_tkcairo",
-    "matplotlib.backends.backend_gtk3", "matplotlib.backends.backend_gtk4",
-    "matplotlib.backends.backend_gtk3agg", "matplotlib.backends.backend_gtk4agg",
-    "matplotlib.backends.backend_wx", "matplotlib.backends.backend_wxagg",
-    "matplotlib.backends.backend_webagg", "matplotlib.backends.backend_nbagg",
-    "matplotlib.backends.backend_macosx", "matplotlib.backends.backend_cairo",
-    "matplotlib.backends.backend_qtcairo", "matplotlib.backends.backend_pdf",
-    "matplotlib.backends.backend_ps", "matplotlib.backends.backend_pgf",
-    "matplotlib.backends.backend_svg", "matplotlib.backends.backend_template",
+    # Pruebas internas de numpy.
+    "numpy.testing", "numpy.tests",
     "PyQt5", "PyQt6", "PySide2",
-    # Pillow: matplotlib solo lo necesita para escribir/leer PNG. Se quitan los
-    # formatos pesados (AVIF pesa 7,5 MB, WebP, gestión de color, Tk).
-    "PIL.AvifImagePlugin", "PIL._avif", "PIL.WebPImagePlugin", "PIL._webp",
-    "PIL.ImageCms", "PIL._imagingcms", "PIL.ImageTk", "PIL._imagingtk",
     # Red / criptografía: la app no usa internet. Quitar ssl y _hashlib
     # elimina libcrypto-3.dll y libssl-3.dll (~7 MB).
     "ssl", "_ssl", "_hashlib",
-    # Módulos de Qt que la app no importa (solo usa QtCore, QtGui, QtWidgets
-    # y QtSvg).
+    # Módulos de Qt que la app no importa (solo usa QtCore, QtGui y QtWidgets).
     "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickWidgets",
     "PySide6.QtQuickControls2", "PySide6.QtNetwork", "PySide6.QtPdf",
     "PySide6.QtPdfWidgets", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets",
     "PySide6.QtDBus", "PySide6.QtConcurrent", "PySide6.QtTest",
     "PySide6.QtSql", "PySide6.QtXml", "PySide6.QtPrintSupport",
-    "PySide6.QtSvgWidgets", "PySide6.QtDesigner", "PySide6.QtHelp",
-    "PySide6.QtUiTools", "PySide6.QtWebChannel",
+    "PySide6.QtSvg", "PySide6.QtSvgWidgets", "PySide6.QtDesigner",
+    "PySide6.QtHelp", "PySide6.QtUiTools", "PySide6.QtWebChannel",
 ]
 
 # Trozos de archivos de datos/binarios que se descartan después del análisis.
@@ -92,20 +75,16 @@ DESCARTAR = [
     "pyside6/plugins/imageformats/qwbmp",
     "pyside6/qt6network", "pyside6/qt6qml", "pyside6/qt6quick",
     "pyside6/qt6pdf", "pyside6/qt6opengl", "pyside6/qt6virtualkeyboard",
+    "pyside6/plugins/imageformats/qsvg",
+    "pyside6/plugins/iconengines/qsvgicon",
     "pyside6/opengl32sw",                # renderizador por software de OpenGL
     "pyside6/d3dcompiler",
-    "matplotlib/mpl-data/sample_data",   # datos de ejemplo
-    "matplotlib/mpl-data/images",        # iconos de la barra de herramientas
-    "matplotlib/mpl-data/fonts/pdfcorefonts",
-    "matplotlib/mpl-data/fonts/afm",
     "numpy/tests", "numpy/_core/tests",
 ]
 # Excepciones: aunque coincidan con DESCARTAR, estas SÍ se conservan.
 CONSERVAR = [
-    "pyside6/plugins/iconengines/qsvgicon",  # iconos SVG (QIcon con .svg)
-    "pyside6/plugins/imageformats/qsvg",     # lector de imágenes SVG
     "pyside6/plugins/imageformats/qjpeg",
-    "pyside6/plugins/imageformats/qpng",
+    "pyside6/plugins/imageformats/qpng",  # el icono de la ventana es un PNG
 ]
 
 
@@ -120,8 +99,8 @@ a = Analysis(  # noqa: F821
     [str(RAIZ / "viviani_app.py")],
     pathex=[str(RAIZ), str(RAIZ / "src")],
     binaries=[],
-    # (origen, destino dentro del paquete). viviani/ui/iconos.py busca los
-    # SVG con una ruta relativa a su propio __file__: .../viviani/recursos/iconos
+    # (origen, destino dentro del paquete). app.py busca el icono con una
+    # ruta relativa a su propio __file__: .../viviani/recursos/icono.png
     datas=[(str(RAIZ / "src" / "viviani" / "recursos"), "viviani/recursos")],
     hiddenimports=[],
     hookspath=[],

@@ -13,26 +13,22 @@ from viviani.calculo import (
     calcular,
 )
 
-METODOS = ("punto_medio",)  # el único que usa el programa
-
 
 class PruebasCoincidencia(unittest.TestCase):
     def test_coincide_con_el_programa_original(self):
         # 1, 7, 120, 121: alrededor del límite de barras; 1_234_567: más de un bloque
         for n in (1, 7, 120, 121, 1000, 1_234_567):
-            for metodo in METODOS:
-                with self.subTest(n=n, metodo=metodo):
-                    esperado = suma_de_riemann(7.5, n, metodo)
-                    obtenido = calcular(7.5, n, metodo).perimetro
-                    self.assertLess(abs(obtenido - esperado) / esperado, 1e-12)
+            with self.subTest(n=n):
+                esperado = suma_de_riemann(7.5, n, "punto_medio")
+                obtenido = calcular(7.5, n).perimetro
+                self.assertLess(abs(obtenido - esperado) / esperado, 1e-12)
 
     def test_area_de_las_barras_es_el_perimetro(self):
         for n in (1, 10, 120, 121, 1000, 1_234_567):
-            for metodo in METODOS:
-                with self.subTest(n=n, metodo=metodo):
-                    r = calcular(5.0, n, metodo)
-                    area = float(np.sum(r.barras_ancho * r.barras_altura))
-                    self.assertAlmostEqual(area / r.perimetro, 1.0, places=12)
+            with self.subTest(n=n):
+                r = calcular(5.0, n)
+                area = float(np.sum(r.barras_ancho * r.barras_altura))
+                self.assertAlmostEqual(area / r.perimetro, 1.0, places=12)
 
     def test_cantidad_de_barras_y_agrupacion(self):
         chico = calcular(1.0, 10)
@@ -61,22 +57,20 @@ class PruebasCoincidencia(unittest.TestCase):
 class PruebasValidacion(unittest.TestCase):
     def test_datos_invalidos(self):
         casos = [
-            (0, 10, "punto_medio"),
-            (-1, 10, "punto_medio"),
-            (math.nan, 10, "punto_medio"),
-            (math.inf, 10, "punto_medio"),
-            (1.0, 0, "punto_medio"),
-            (1.0, 2.5, "punto_medio"),
-            (1.0, True, "punto_medio"),
-            (1.0, 10_000_001, "punto_medio"),
-            (1.0, 10, "trapecio"),
-            (1.0, 10, "izquierda"),
-            (1e308, 10, "punto_medio"),
+            (0, 10),
+            (-1, 10),
+            (math.nan, 10),
+            (math.inf, 10),
+            (1.0, 0),
+            (1.0, 2.5),
+            (1.0, True),
+            (1.0, 10_000_001),
+            (1e308, 10),
         ]
-        for radio, n, metodo in casos:
-            with self.subTest(radio=radio, n=n, metodo=metodo):
+        for radio, n in casos:
+            with self.subTest(radio=radio, n=n):
                 with self.assertRaises(ValueError):
-                    calcular(radio, n, metodo)
+                    calcular(radio, n)
 
     def test_radio_enorme_dice_demasiado_grande(self):
         with self.assertRaisesRegex(ValueError, "demasiado grande"):

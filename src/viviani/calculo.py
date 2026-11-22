@@ -26,7 +26,6 @@ class CalculoCancelado(Exception):
 class Resultado:
     radio: float
     n: int
-    metodo: str  # siempre "punto_medio"
     perimetro: float  # cm
     referencia: float  # RAZON_REFERENCIA * radio
     error_absoluto: float  # cm
@@ -38,7 +37,7 @@ class Resultado:
     agrupado: bool  # True si n > MAX_BARRAS
 
 
-def _validar(radio, n, metodo):
+def _validar(radio, n):
     """Mismas reglas y mensajes que `suma_de_riemann`."""
     if not math.isfinite(radio) or radio <= 0:
         raise ValueError("El radio R debe ser un número real positivo.")
@@ -48,8 +47,6 @@ def _validar(radio, n, metodo):
         raise ValueError(
             f"El número de subintervalos no debe superar {MAX_SUBINTERVALOS:,}."
         )
-    if metodo != "punto_medio":
-        raise ValueError("Método no válido: solo se usa el punto medio.")
 
 
 def _suma_por_bloques(radio, n, grupos, progreso=None, cancelado=None):
@@ -90,13 +87,13 @@ def _barras(n, sumas_grupo):
     return T_INICIAL + i_ini * delta_t, cuantos * delta_t, sumas_grupo / cuantos
 
 
-def calcular(radio, n, metodo="punto_medio", progreso=None, cancelado=None):
+def calcular(radio, n, progreso=None, cancelado=None):
     """Calcula el perímetro aproximado y los rectángulos para dibujarlo.
 
     progreso(porcentaje) se llama después de cada bloque; si cancelado()
     devuelve True se lanza CalculoCancelado.
     """
-    _validar(radio, n, metodo)
+    _validar(radio, n)
     agrupado = n > MAX_BARRAS
     suma, sumas_grupo = _suma_por_bloques(
         radio, n, min(n, MAX_BARRAS), progreso, cancelado
@@ -111,7 +108,6 @@ def calcular(radio, n, metodo="punto_medio", progreso=None, cancelado=None):
     return Resultado(
         radio=radio,
         n=n,
-        metodo=metodo,
         perimetro=perimetro,
         referencia=referencia,
         error_absoluto=error_absoluto,

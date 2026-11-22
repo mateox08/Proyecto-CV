@@ -1,59 +1,63 @@
-"""Colores, fuentes y medidas de la interfaz.
+"""Colores y fuentes de la interfaz.
 
-La aplicación tiene un solo tema, oscuro y sobrio, tipo "grafito": fondo
-carbón neutro, texto casi blanco y un único acento verde menta. El ámbar y
-el coral se reservan para marcar puntos en las gráficas. Cada color tiene un
-nombre ("token") para no repetir códigos hexadecimales por todo el programa:
-si se quiere cambiar un color, se cambia solo aquí.
+La aplicación tiene un solo tema, oscuro y plateado: fondo casi negro con
+estrellas, texto blanco, un degradado de blanco a gris plata como sello y un
+naranja de señal para los puntos de muestra (lo único con color, para que
+salten a la vista). Cada color tiene un nombre ("token") para no repetir
+códigos hexadecimales por todo el programa: si se quiere cambiar un color,
+se cambia solo aquí.
 """
 
+from PySide6.QtGui import QColor
+
 _COLORES = {
-    # Fondo de la ventana: carbón con una rejilla de puntos muy tenue
-    "fondo":              "#0B0C0F",
-    "fondo_2":            "#111318",
-    "rejilla":            "#2A2E36",
-    # Superficies (cajas, paneles)
-    "superficie":         "#15171C",
-    # Fondo de las gráficas en pantalla: transparente. Formato #RRGGBBAA.
-    "fondo_grafica":      "#00000000",
-    "borde":              "#2A2E36",
-    "borde_brillo":       "#7DD3C0",
-    "separador":          "#1E2127",
+    # Fondo de la ventana: casi negro, con estrellas blancas
+    "fondo":              "#08090A",
+    "fondo_2":            "#101113",
+    "estrella":           "#FFFFFF",
+    # Superficies (tarjetas, cajas de texto, chips)
+    "superficie":         "#131416",
+    "superficie_2":       "#1B1C1F",
+    "borde":              "#303236",
+    "separador":          "#1F2023",
     # Texto
-    "texto":              "#ECEDEF",
-    "texto_sec":          "#9BA1AB",
-    "etiqueta":           "#858B96",
-    # Acento único: verde menta
-    "acento":             "#7DD3C0",
-    "acento_hover":       "#A3E4D5",
-    "acento_suave":       "#1C2F2B",
-    "brillo":             "#7DD3C0",
-    "violeta":            "#8FB8DE",  # segundo tono, azul cielo apagado
-    "texto_sobre_acento": "#0B0C0F",
+    "texto":              "#F2F2F2",
+    "texto_sec":          "#ABADB2",
+    "etiqueta":           "#909298",
+    # Acentos: blanco y plata (siempre juntos, en degradado)
+    "acento":             "#EDEDED",
+    "acento_2":           "#8C9099",
+    "acento_suave":       "#25272B",
+    "texto_sobre_acento": "#0A0A0B",
     # Estados
-    "error":              "#F28B82",
-    "fondo_error":        "#2A1716",
-    # Series de las gráficas
-    "serie_azul":         "#7DD3C0",
-    "serie_naranja":      "#E8B76A",
-    "serie_turquesa":     "#8FB8DE",  # la curva 3D va de menta a azul cielo
-    "punto_doble":        "#F28B6C",
-    "esfera":             "#6B7383",
+    "error":              "#FF7A66",
+    "fondo_error":        "#2A1512",
+    # Gráficas: el naranja de señal marca lo que hay que mirar
+    "muestra":            "#FF6A3D",  # puntos de muestra t_i
+    "aviso":              "#FF8A5C",  # cifras que aún no son correctas
+    "punto_doble":        "#FF3D3D",
+    "esfera":             "#71757C",
+    "cilindro":           "#FF6A3D",
 }
 
 # Tipografía: todas vienen con Windows, no hay que instalar nada.
-# Una sola familia (Segoe UI Variable) para casi todo; la monoespaciada solo
-# para los números pequeños de los ejes 3D.
 FAMILIAS_TITULO = ["Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI"]
-FAMILIAS_NUMEROS = ["Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI"]
 FAMILIAS_INTERFAZ = ["Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI"]
 FAMILIAS_MONO = ["Cascadia Mono", "Consolas", "Courier New"]
-FAMILIAS_GRAFICAS = ["Segoe UI", "DejaVu Sans"]
+# Las fórmulas con la letra de los libros de matemáticas
+FAMILIAS_MATEMATICA = ["Cambria Math", "Cambria", "Segoe UI"]
 
 
 def paleta():
     """Devuelve un diccionario {nombre: "#RRGGBB"} con todos los colores."""
     return dict(_COLORES)
+
+
+def con_alfa(color, alfa):
+    """QColor a partir de "#RRGGBB" con transparencia (0 a 1) para QPainter."""
+    tono = QColor(color)
+    tono.setAlphaF(min(max(alfa, 0.0), 1.0))
+    return tono
 
 
 def rgba(color, alfa):

@@ -6,8 +6,13 @@ mediante una suma de Riemann de la función subintegral de la longitud de arco.
 
 Hay dos versiones que hacen el mismo cálculo:
 
-- **Aplicación de escritorio** (`viviani_app.py` o el `.exe`): tema oscuro, con la
-  curva en 3D girando, los rectángulos de la suma animados y efectos de sonido.
+- **Aplicación de escritorio** (`viviani_app.py` o el `.exe`), versión 3, con
+  distribución orbital: la curva gira en 3D sobre la esfera y el cilindro que
+  la generan, rodeada por un anillo al que se atan cuatro tarjetas (datos,
+  fórmula, resultado y suma de Riemann). Al calcular, los rectángulos crecen
+  al mismo ritmo en que aparecen los puntos r(tᵢ) sobre la curva; al pasar el
+  mouse por un rectángulo se ve su vector velocidad r′(tᵢ) en 3D. El
+  perímetro resalta sus cifras correctas y cada clic suelta una onda de luz.
 - **Versión de consola** (`perimetro_viviani.py`): el núcleo matemático, sin
   librerías externas.
 
@@ -41,11 +46,15 @@ No necesita Python. Descomprima `PerimetroViviani-onedir.zip` y abra
 1. Escriba el radio R (cm) y el número de subintervalos n.
 2. Presione **Enter** o **Calcular**.
 3. Para encadenar otro cálculo, escriba el nuevo valor y vuelva a presionar Enter.
+4. Pase el mouse sobre la gráfica de Riemann para leer cada rectángulo y ver
+   su punto en la curva 3D. Los chips bajo la esfera ocultan la malla, el
+   cilindro o los ejes.
 
 | Tecla | Acción |
 |---|---|
 | Enter | Calcular |
-| Esc | Cancelar el cálculo en curso o saltar la animación |
+| ↑ / ↓ en el campo n | Multiplicar o dividir n entre 10 |
+| Esc | Cerrar los créditos, cancelar el cálculo en curso o saltar la animación |
 
 Windows SmartScreen o el antivirus pueden avisar al abrir un `.exe` que no está
 firmado (es un falso positivo frecuente con PyInstaller). Si ocurre, elija
@@ -98,12 +107,12 @@ rápida (numpy) coincide con la de consola y todos los mensajes de validación.
 Primero ejecuta las pruebas; si pasan, construye con PyInstaller según
 `viviani.spec` y deja el resultado en `dist\` (que no se sube a git).
 
-Medido en un portátil con Windows 11 (2026-11-19):
+Medido en un portátil con Windows 11 (2026-11-21, versión 3):
 
-| Modo | Resultado | Tamaño | Pantalla de carga | Ventana lista |
-|---|---|---|---|---|
-| Carpeta (`onedir`) | `dist\PerimetroViviani\` | 104.9 MB (45.7 MB en zip) | 0.5 s | 2.3 s |
-| Archivo único (`onefile`) | `dist\PerimetroViviani.exe` | 45.5 MB | 1.9 s | 3.8 s |
+| Modo | Resultado | Tamaño |
+|---|---|---|
+| Carpeta (`onedir`) | `dist\PerimetroViviani\` | 84.4 MB (33.6 MB en zip) |
+| Archivo único (`onefile`) | `dist\PerimetroViviani.exe` | 33.5 MB |
 
 El archivo único tarda más en mostrar algo porque primero se descomprime en
 una carpeta temporal (eso ocurre antes de que el programa pueda dibujar).
@@ -122,10 +131,11 @@ carpeta temporal cada vez que se abre.
 | Versión | Dónde está | Aspecto |
 |---|---|---|
 | 1.0 | etiqueta `v1.0` (rama `feature/interfaz-grafica`) | Tema claro con tarjetas |
-| 2.0 | rama `version-2` | Tema oscuro grafito; la curva 3D ocupa el centro, resultados y Riemann juntos a la derecha, créditos con efecto vidrio, pantalla de carga e icono |
+| 2.0 | etiquetas `v2.0` y `v2.1` | Tema oscuro grafito; la curva 3D ocupa el centro, resultados y Riemann juntos a la derecha, créditos con efecto vidrio, pantalla de carga e icono |
+| 3.0 | etiqueta `v3.0` | Distribución orbital con tarjetas de vidrio; tema plateado; sin matplotlib (todo con QPainter); cilindro, cometa y puntos de muestra en 3D enlazados con Riemann; fórmulas bien dibujadas; cifras correctas; pulsos de luz; sonidos de marimba |
 
-Para volver a la versión 1: `git checkout v1.0` (y `git checkout version-2`
-para regresar).
+Para ver una versión anterior: `git checkout v1.0` o `git checkout v2.0`
+(y `git checkout main` para regresar).
 
 ## Estructura
 
@@ -138,7 +148,7 @@ para regresar).
 | `tests/` | Pruebas de la aplicación |
 | `scripts/` | `ejecutar.ps1`, `construir.ps1` y `generar_icono.py` |
 | `docs/EXPLICACION.md` | Cómo está organizado el código, en lenguaje sencillo |
-| `docs/decisiones.md` | Por qué se eligió PySide6 + matplotlib |
+| `docs/decisiones.md` | Por qué se eligió PySide6 (ADR-001) y por qué la versión 3 dibuja todo con QPainter (ADR-002) |
 | `viviani.spec` | Receta de PyInstaller |
 
 ## Integrantes

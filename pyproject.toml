@@ -1,6 +1,6 @@
 [project]
 name = "perimetro-viviani"
-version = "1.0.0"
+version = "3.0.0"
 description = "Perímetro de la Ventana de Viviani con una suma de Riemann (ESPOL, Cálculo Vectorial)"
 requires-python = ">=3.10"
 
